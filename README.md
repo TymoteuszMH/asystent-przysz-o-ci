@@ -1,4 +1,4 @@
-#GovFlow
+# #GovFlow
 
 Nasze rozwiązanie to lekka, intuicyjna aplikacja webowa zaprojektowana specjalnie dla urzędników, hostowana w pełni lokalnie na infrastrukturze urzędu. System działa w zamkniętym środowisku i nie wymaga kosztownej integracji z zewnętrznymi systemami urzędowymi. Wykorzystuje lokalnie uruchomiony model językowy oraz lokalną bazę wektorową zasilaną wyłącznie dokumentami wgranymi przez urząd. Gwarantuje to pełną suwerenność danych i zero ryzyka ich wycieku poza urząd.
 Działanie:
