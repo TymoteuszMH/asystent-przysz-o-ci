@@ -1,0 +1,378 @@
+<div class="page-container">
+  <!-- Nawigacja powrotna -->
+  <div class="detail-nav">
+    <a routerLink="/documents" class="btn btn-outline back-link">
+      &larr; Powrót do listy zapytań
+    </a>
+  </div>
+
+  <!-- Błąd -->
+  @if (errorMessage()) {
+    <div class="alert alert-danger">
+      <svg class="icon alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <div>
+        <strong>Wystąpił błąd:</strong>
+        <p class="error-text">{{ errorMessage() }}</p>
+      </div>
+    </div>
+  }
+
+  <!-- Sukces zatwierdzenia -->
+  @if (approvalSuccessMessage()) {
+    <div class="alert alert-success">
+      <svg class="icon alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+      <div>
+        <strong>Sukces!</strong> {{ approvalSuccessMessage() }}
+      </div>
+    </div>
+  }
+
+  <!-- Ładowanie -->
+  @if (isLoading()) {
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>Pobieranie szczegółów zapytania z backendu...</p>
+    </div>
+  }
+
+  <!-- Szczegóły sprawy -->
+  @if (!isLoading() && document(); as doc) {
+    <div class="card detail-card">
+      <!-- Nagłówek sprawy -->
+      <div class="detail-header">
+        <div class="case-meta-top">
+          <span class="case-code">{{ getCaseNumber(doc) }}</span>
+          <span class="badge" [ngClass]="getStatusBadgeClass(doc.metadata.status)">
+            {{ doc.metadata.status || 'Nowy' }}
+          </span>
+          @if (doc.metadata.department) {
+            <span class="dept-badge">{{ doc.metadata.department }}</span>
+          }
+        </div>
+        <h1 class="doc-main-title">{{ doc.title }}</h1>
+      </div>
+
+      <!-- Kafelki informacyjne -->
+      <div class="info-strip">
+        <div class="info-strip-item">
+          <span class="info-strip-label">Wnioskodawca</span>
+          <span class="info-strip-val">{{ getApplicant(doc) }}</span>
+        </div>
+
+        <div class="info-strip-item">
+          <span class="info-strip-label">Data wpływu</span>
+          <span class="info-strip-val">
+            {{ doc.metadata.dataWplywu || (doc.createdAt | date:'yyyy-MM-dd') || '-' }}
+          </span>
+        </div>
+
+        <div class="info-strip-item">
+          <span class="info-strip-label">Termin odpowiedzi</span>
+          <span class="info-strip-val deadline">
+            {{ doc.metadata.terminOdpowiedzi || '-' }}
+          </span>
+        </div>
+
+        <div class="info-strip-item">
+          <span class="info-strip-label">Data odpowiedzi</span>
+          <span class="info-strip-val">
+            {{ doc.metadata.dataOdpowiedzi || 'Oczekuje' }}
+          </span>
+        </div>
+
+        <div class="info-strip-item">
+          <span class="info-strip-label">Osoba odpowiedzialna</span>
+          <span class="info-strip-val">
+            {{ doc.metadata.osobaOdpowiedzialna || 'Nie przydzielono' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Treść wniosku obywatela -->
+      <div class="section-block">
+        <h2 class="section-heading">
+          <svg class="icon section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          Treść zapytania / Wniosku
+        </h2>
+        <div class="content-box">
+          {{ doc.content }}
+        </div>
+      </div>
+
+      <!-- Tagi -->
+      @if (doc.tags && doc.tags.length > 0) {
+        <div class="section-block">
+          <div class="tags-container">
+            @for (tag of doc.tags; track tag) {
+              <span class="tag-pill-large"># {{ tag }}</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- SEKCJA: PRZYGOTOWANIE MODELU ODPOWIEDZI I ANONIMIZACJA -->
+    <div class="card response-workbench-card" style="margin-top: 28px;">
+      <div class="workbench-header">
+        <div class="workbench-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="workbench-title">Przygotowanie Modelu Odpowiedzi z Wydziału</h2>
+          <p class="workbench-subtitle">
+            System generuje oficjalny model odpowiedzi urzędowej i automatycznie identyfikuje wszelkie wrażliwe pola podlegające anonimizacji (<code>dane_podlegajace_anonimizacji</code>)
+          </p>
+        </div>
+      </div>
+
+      <!-- KROK 1: Wprowadzenie materiałów / odpowiedzi z wydziału -->
+      <div class="dept-input-section">
+        <div class="input-header-row">
+          <label class="form-label" for="deptFeedback">
+            Stanowisko merytoryczne / Informacje przekazane przez wydział:
+          </label>
+          <button
+            type="button"
+            class="btn btn-sm btn-link-action"
+            (click)="insertSampleFeedback()"
+          >
+            + Wstaw przykładową odpowiedź z danymi wrażliwymi
+          </button>
+        </div>
+
+        <textarea
+          id="deptFeedback"
+          class="form-control"
+          rows="5"
+          placeholder="Wpisz lub wklej treść informacji otrzymanych z wydziału (np. statystyki, dane osobowe, adresy)..."
+          [ngModel]="departmentFeedback()"
+          (ngModelChange)="departmentFeedback.set($event)"
+        ></textarea>
+
+        <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="generateResponse()"
+            [disabled]="isGeneratingResponse() || !departmentFeedback().trim()"
+          >
+            @if (isGeneratingResponse()) {
+              <span class="btn-spinner"></span>
+              Przetwarzanie i analiza danych wrażliwych...
+            } @else {
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Generuj model odpowiedzi i oznacz dane wrażliwe
+            }
+          </button>
+        </div>
+      </div>
+
+      <!-- KROK 2: Prezentacja modelu odpowiedzi i panel anonimizacji -->
+      @if (responseModel(); as model) {
+        <div class="model-results-area">
+          <!-- Pasek podsumowania wykrytych danych wrażliwych -->
+          <div class="sens-summary-bar">
+            <div class="summary-left">
+              <span class="shield-icon">🛡️</span>
+              <div>
+                <strong>Wykryto {{ daneAnonimizacji().length }} pól podlegających anonimizacji:</strong>
+                <span class="sens-count-badge">
+                  {{ activeAnonymizedCount() }} z nich jest aktualnie zanonimizowanych
+                </span>
+              </div>
+            </div>
+
+            <div class="summary-actions">
+              <button type="button" class="btn btn-sm btn-outline" (click)="toggleAll(true)">
+                Zanonimizuj wszystkie
+              </button>
+              <button type="button" class="btn btn-sm btn-secondary" (click)="toggleAll(false)">
+                Odkryj wszystkie
+              </button>
+            </div>
+          </div>
+
+          <!-- Główny układ: Lista danych podlegających anonimizacji + Podgląd odpowiedzi -->
+          <div class="workbench-grid">
+            <!-- LEWA KOLUMNA: Lista pól dane_podlegajace_anonimizacji -->
+            <div class="sens-column">
+              <h3 class="column-title">
+                Pola podlegające anonimizacji (<code>dane_podlegajace_anonimizacji</code>)
+              </h3>
+              <p class="column-desc">
+                Zaznacz pola, które mają zostać zanonimizowane zgodnie z art. 5 ust. 2 UDIP (ochrona prywatności):
+              </p>
+
+              <div class="sens-list">
+                @for (field of daneAnonimizacji(); track field.id) {
+                  <div class="sens-item-card" [class.anonymized]="field.isAnonymized">
+                    <div class="sens-item-top">
+                      <span class="badge" [ngClass]="getCategoryBadgeClass(field.category)">
+                        {{ field.label }}
+                      </span>
+                      <label class="toggle-container">
+                        <input
+                          type="checkbox"
+                          [checked]="field.isAnonymized"
+                          (change)="toggleFieldAnonymization(field)"
+                        />
+                        <span class="toggle-label">
+                          {{ field.isAnonymized ? 'Zanonimizowano' : 'Jawne' }}
+                        </span>
+                      </label>
+                    </div>
+
+                    <div class="sens-val-row">
+                      <span class="sens-val-orig">{{ field.value }}</span>
+                      @if (field.isAnonymized) {
+                        <span class="sens-arrow">&rarr;</span>
+                        <span class="sens-val-repl">{{ field.replacement }}</span>
+                      }
+                    </div>
+
+                    @if (field.legalBasis) {
+                      <div class="sens-legal-basis">
+                        Podstawa prawna: {{ field.legalBasis }}
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+
+              <!-- Dodawanie własnej frazy do anonimizacji -->
+              <div class="add-custom-field-box">
+                <label class="form-label">Dodaj inne pole do anonimizacji:</label>
+                <div class="add-custom-input-group">
+                  <input
+                    type="text"
+                    class="form-control"
+                    placeholder="Wpisz frazę lub nazwisko..."
+                    [ngModel]="customPhraseToAnonymize()"
+                    (ngModelChange)="customPhraseToAnonymize.set($event)"
+                    (keyup.enter)="addCustomSensitiveField()"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    (click)="addCustomSensitiveField()"
+                    [disabled]="!customPhraseToAnonymize().trim()"
+                  >
+                    + Dodaj
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- PRAWA KOLUMNA: Model odpowiedzi urzędowej -->
+            <div class="preview-column">
+              <div class="preview-header-tabs">
+                <button
+                  type="button"
+                  class="tab-btn"
+                  [class.active]="activeTab() === 'highlighted'"
+                  (click)="activeTab.set('highlighted')"
+                >
+                  Projekt z zaznaczonymi polami
+                </button>
+                <button
+                  type="button"
+                  class="tab-btn"
+                  [class.active]="activeTab() === 'anonymized'"
+                  (click)="activeTab.set('anonymized')"
+                >
+                  Wersja zanonimizowana (BIP)
+                </button>
+              </div>
+
+              <!-- Wyświetlanie tekstu odpowiedzi -->
+              <div class="response-text-container">
+                @if (activeTab() === 'highlighted') {
+                  <pre class="official-letter-paper">{{ model.draftResponseText }}</pre>
+                } @else {
+                  <pre class="official-letter-paper anonymized-paper">{{ liveAnonymizedText() }}</pre>
+                }
+              </div>
+
+              <!-- Narzędzia schowka i pobierania -->
+              <div class="preview-tools">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-secondary"
+                  (click)="copyToClipboard(activeTab() === 'anonymized' ? liveAnonymizedText() : model.draftResponseText)"
+                >
+                  @if (copiedToClipboard()) {
+                    ✓ Skopiowano do schowka!
+                  } @else {
+                    Kopiuj treść
+                  }
+                </button>
+
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline"
+                  (click)="downloadAsText('odpowiedz-' + getCaseNumber(doc) + '.txt', liveAnonymizedText())"
+                >
+                  Pobierz jako .txt
+                </button>
+              </div>
+
+              <!-- Formularz zatwierdzenia odpowiedzi -->
+              <div class="approval-box">
+                <h4 class="approval-box-title">Zatwierdzenie odpowiedzi przez urzędnika</h4>
+
+                <div class="form-group">
+                  <label class="form-label" for="officerNote">
+                    Adnotacja urzędnika BIP:
+                  </label>
+                  <input
+                    id="officerNote"
+                    type="text"
+                    class="form-control"
+                    [ngModel]="officerNote()"
+                    (ngModelChange)="officerNote.set($event)"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  class="btn btn-primary btn-approve"
+                  (click)="approveResponse()"
+                  [disabled]="isApproving()"
+                >
+                  @if (isApproving()) {
+                    <span class="btn-spinner"></span>
+                    Zatwierdzanie i zapisywanie...
+                  } @else {
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Zatwierdź odpowiedź (Zakończ sprawę)
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,73 @@
+<div class="app-layout">
+  <!-- Top navigation bar -->
+  <header class="top-nav">
+    <div class="nav-container">
+      <div class="brand">
+        <a routerLink="/documents" class="brand-link">
+          <div class="brand-logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">Asystent Przyszłości</span>
+            <span class="brand-sub">Panel Obsługi Zapytań Publicznych</span>
+          </div>
+        </a>
+      </div>
+
+      <nav class="nav-menu">
+        <a
+          routerLink="/documents"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
+          class="nav-link"
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+          Wszystkie zapytania
+        </a>
+
+        <a
+          routerLink="/documents/new"
+          routerLinkActive="active"
+          class="nav-link nav-btn-primary"
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Nowe zapytanie
+        </a>
+      </nav>
+
+      <div class="user-badge">
+        <span class="status-indicator"></span>
+        <span class="user-role">Urzędnik BIP</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main content area -->
+  <main class="main-content">
+    <router-outlet></router-outlet>
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <div>
+        <strong>Asystent Przyszłości</strong> &bull; System wspomagania urzędnika w obsłudze wniosków o informację publiczną
+      </div>
+      <div class="footer-backend-info">
+        Backend: <code>NestJS API (http://localhost:3000)</code>
+      </div>
+    </div>
+  </footer>
+</div>
