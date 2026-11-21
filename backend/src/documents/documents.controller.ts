@@ -20,7 +20,7 @@ import { ApproveResponseDto } from './dto/approve-response.dto';
 
 @Controller('documents')
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(private readonly documentsService: DocumentsService) { }
 
   /**
    * POST /documents/check-similarity
@@ -91,4 +91,11 @@ export class DocumentsController {
   create(@Body() createDocumentDto: CreateDocumentDto): Document {
     return this.documentsService.create(createDocumentDto);
   }
-}
+
+  // New endpoint for receiving statutes (ustawy)
+  @Post('ustawy')
+  @HttpCode(HttpStatus.CREATED)
+  createUstawa(@Body() createDocumentDto: CreateDocumentDto): Document {
+    // Reuse the existing document creation logic; you may extend this to store in a separate collection.
+    return this.documentsService.create(createDocumentDto);
+  }
