@@ -1,61 +1,42 @@
-# Asystent Przyszłości
+# #GovFlow
 
-System wspomagania urzędnika w obsłudze wniosków o informację publiczną z modułami:
-1. **Analiza zbieżności wniosków z ostatniego roku** i inteligentnej dystrybucji do wydziałów merytorycznych (`wydzialy`),
-2. **Przygotowanie modelu odpowiedzi urzędowej** na podstawie informacji z wydziału,
-3. **Automatyczne oznaczanie i anonimizacja danych wrażliwych** (`dane_podlegajace_anonimizacji`) zgodnie z art. 5 ust. 2 ustawy o dostępie do informacji publicznej (UDIP) oraz RODO przed zatwierdzeniem i publikacją w BIP.
+Nasze rozwiązanie to lekka, intuicyjna aplikacja webowa zaprojektowana specjalnie dla urzędników, hostowana w pełni lokalnie na infrastrukturze urzędu. System działa w zamkniętym środowisku i nie wymaga kosztownej integracji z zewnętrznymi systemami urzędowymi. Wykorzystuje lokalnie uruchomiony model językowy oraz lokalną bazę wektorową zasilaną wyłącznie dokumentami wgranymi przez urząd. Gwarantuje to pełną suwerenność danych i zero ryzyka ich wycieku poza urząd.
+Działanie:
+
+## 1. Wgranie i analiza formalno-merytoryczna wniosku: 
+Urzędnik wgrywa do aplikacji plik z wnioskiem. Lokalny model AI analizuje jego treść, strukturę i formę, automatycznie wyciągając kluczowe dane oraz weryfikując zgodność z wymogami ustawowymi. 
+
+## 2. Przeszukiwanie archiwum i rekomendacja ścieżki:
+System przeszukuje lokalną bazę wiedzy i natychmiast wyświetla listę podobnych spraw z ostatniego roku wraz z gotowymi odpowiedziami. Następnie analizuje strukturę organizacyjną Urzędu Miasta Bydgoszczy i wskazuje konkretne wydziały lub biura, do których należy skierować zapytanie o przygotowanie danych merytorycznych.
+
+## 3. Zintegrowany kalendarz wniosków i zarządzanie terminami:
+Sprawa trafia do interaktywnej tabeli połączonej z kalendarzem, posortowanej chronologicznie od najstarszych do najnowszych wniosków. System automatycznie wylicza ustawowy termin odpowiedzi i podświetla kolorem wnioski pilne. Urzędnik ma pełną kontrolę nad kartą sprawy oraz statusami na każdym etapie. 
+
+## 4. Agregacja danych z wydziałów i generowanie projektu pisma:
+Po otrzymaniu informacji zwrotnych z poszczególnych wydziałów, urzędnik wgrywa je do odpowiedniej sprawy w aplikacji. Lokalny model AI łączy zebrane informacje z kontekstem wniosku oraz wzorami urzędowymi i generuje kompletny projekt pisma wyjściowego.
+
+## 5. Półautomatyczna anonimizacja:
+Przed eksportem moduł anonimizacji wykrywa w wygenerowanym projekcie wszelkie nadmiarowe dane wrażliwe i osobowe, podświetlając je na szaro jako sugestie do ukrycia. Urzędnik jednym kliknięciem zatwierdza wybrane fragmenty lub odznacza te, które powinny pozostać jawne. 
+
+## 6. Eksport i pełna kontrola człowieka:
+Gotowy, zanonimizowany projekt odpowiedzi jest eksportowany do edytowalnego pliku. System nie wysyła żadnej korespondencji automatycznie - pełni wyłącznie funkcję bezpiecznego asystenta, pozostawiając ostateczną weryfikację merytoryczną oraz wysyłkę w rękach urzędnika.
 
 ---
 
-## Architektura projektu
+## Uruchomienie lokalne
 
-- **`backend/`** – Serwer REST API w NestJS 11 (`http://localhost:3000`):
-  - `GET /documents` – pobieranie wszystkich zapytań
-  - `GET /documents/:id` – pobieranie szczegółów zapytania
-  - `POST /documents` – rejestracja nowego zapytania
-  - `POST /documents/check-similarity` – weryfikacja zbieżności z wnioskami z ostatniego roku i rekomendacja wydziału
-  - `POST /documents/:id/generate-response` – generowanie oficjalnego modelu odpowiedzi i wykrywanie danych wrażliwych
-  - `POST /documents/:id/approve-response` – zatwierdzenie odpowiedzi przez urzędnika i zapis wersji zanonimizowanej
-- **`frontend/`** – Aplikacja SPA w Angular 19 (`http://localhost:4200`):
-  - Panel urzędnika, rejestr BIP, wyszukiwanie na żywo,
-  - Moduł Drag & Drop z badaniem zbieżności,
-  - Warsztat modelowania odpowiedzi urzędowej z interaktywnym panelem `dane_podlegajace_anonimizacji` i zatwierdzaniem.
-- **`wydzialy`** – Oficjalny rejestr 19 wydziałów Urzędu Miasta.
-
----
-
-## Szybki start
-
-### 1. Uruchomienie backendu (NestJS)
-
+### Backend (NestJS 11)
 ```bash
 cd backend
 npm install
 npm run start:dev
 ```
-Backend będzie dostępny pod adresem: `http://localhost:3000`.
+Dostępny pod adresem: `http://localhost:3000`
 
-### 2. Uruchomienie frontendu (Angular)
-
-W nowym oknie terminala:
+### Frontend (Angular 19)
 ```bash
 cd frontend
 npm install
 npm start
 ```
-Frontend otworzy się pod adresem: `http://localhost:4200`.
-
----
-
-## Kluczowe moduły urzędnika
-
-### 1. Model odpowiedzi i anonimizacja (`dane_podlegajace_anonimizacji`)
-- Na podstawie materiałów przesłanych przez wydział system generuje oficjalne pismo z zachowaniem formalizmów urzędowych (nagłówek, znak sprawy, powołanie na art. 13 ust. 1 w zw. z art. 10 ust. 1 UDIP, pouczenie o art. 5 ust. 2 UDIP).
-- Silnik analizy danych wrażliwych identyfikuje:
-  - Dane osobowe (imiona i nazwiska osób fizycznych, wnioskodawcy, pracowników),
-  - Adresy e-mail (z wyłączeniem oficjalnych skrzynek urzędowych),
-  - Numery telefonów prywatnych,
-  - Numery PESEL,
-  - Adresy zamieszkania / nieruchomości prywatnych (ulica, nr domu/lokalu).
-- Urzędnik w interaktywnym panelu decyduje o anonimizacji poszczególnych pól z podglądem w czasie rzeczywistym wersji jawnej i wersji zanonimizowanej (do publikacji w BIP).
-- Po zatwierdzeniu sprawa otrzymuje status `odpowiedziano`.
+Dostępny pod adresem: `http://localhost:4200`
