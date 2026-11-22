@@ -36,6 +36,7 @@ export interface ApproveResponseDto {
 export interface DocumentMetadata {
   numerSprawy?: string;
   caseNumber?: string;
+  customId?: string;
   wnioskodawca?: string;
   applicant?: string;
   przedmiotZapytania?: string;
@@ -45,6 +46,9 @@ export interface DocumentMetadata {
   osobaOdpowiedzialna?: string;
   pozostaloDni?: number;
   department?: string;
+  departments?: string[];
+  stage?: string;
+  decision?: string;
   status?: string;
   zbiezneWnioskiIds?: string[];
   rekomendowaneWydzialy?: string[];

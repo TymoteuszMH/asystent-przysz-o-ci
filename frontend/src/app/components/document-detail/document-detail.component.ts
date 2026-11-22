@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DocumentService } from '../../services/document.service';
+import { UdipStateService } from '../../services/udip-state.service';
 import {
   Document,
   ResponseModelResult,
@@ -20,6 +21,29 @@ export class DocumentDetailComponent implements OnInit {
   document = signal<Document | null>(null);
   isLoading = signal<boolean>(true);
   errorMessage = signal<string | null>(null);
+
+  // Karta sprawy z index.html (edycja metadanych)
+  editSygnatura = signal<string>('');
+  editSubject = signal<string>('');
+  editDateReceived = signal<string>('');
+  editDateDeadline = signal<string>('');
+  editContent = signal<string>('');
+  editDecision = signal<string>('OCZEKUJE');
+  editStage = signal<string>('BRAK_DZIALAN');
+  selectedDepartments = signal<string[]>([]);
+  isSavingCard = signal<boolean>(false);
+  cardSavedNotice = signal<string | null>(null);
+
+  readonly UMB_DEPTS = [
+    { code: 'BKS', name: 'Biuro Komunikacji Społecznej' },
+    { code: 'WIM', name: 'Wydział Inwestycji Miasta' },
+    { code: 'WGK', name: 'Wydział Gospodarki Komunalnej' },
+    { code: 'ZDMiKP', name: 'Zarząd Dróg Miejskich i KP' },
+    { code: 'WES', name: 'Wydział Edukacji i Sportu' },
+    { code: 'WFB', name: 'Wydział Budżetu i Finansów' },
+    { code: 'WZP', name: 'Wydział Zamówień Publicznych' },
+    { code: 'WMG', name: 'Wydział Mienia i Geodezji' }
+  ];
 
   // Sekcja odpowiedzi z wydziału i anonimizacji
   departmentFeedback = signal<string>('');
@@ -56,9 +80,54 @@ export class DocumentDetailComponent implements OnInit {
     return this.daneAnonimizacji().filter((f) => f.isAnonymized).length;
   });
 
+  // Wyliczanie różnicy dni do terminu
+  daysDiff = computed(() => {
+    const deadline = this.editDateDeadline();
+    if (!deadline) return 999;
+    const parts = deadline.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return 999;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const target = new Date(parts[0], parts[1] - 1, parts[2]);
+    return Math.round((target.getTime() - today.getTime()) / 86400000);
+  });
+
+  daysBadgeInfo = computed(() => {
+    const dec = this.editDecision();
+    const diff = this.daysDiff();
+    const doc = this.document();
+
+    if (dec === 'ROZPATRZONY' || this.editStage() === 'ODPOWIEDZ_WYSLANA') {
+      const repDate = (doc?.metadata?.dataOdpowiedzi as string) || this.editDateReceived();
+      return { cls: 'days-ok', text: `Rozpatrzono: ${this.formatDatePL(repDate)}` };
+    }
+    if (diff < 0) {
+      return { cls: 'days-red', text: `Po terminie: ${Math.abs(diff)} dni` };
+    }
+    if (diff === 0) {
+      return { cls: 'days-red', text: 'Termin: Dziś' };
+    }
+    if (diff === 1) {
+      return { cls: 'days-orange', text: 'Termin: Jutro' };
+    }
+    return { cls: 'days-blue', text: `Pozostało: ${diff} dni` };
+  });
+
+  decisionPillInfo = computed(() => {
+    const dec = this.editDecision();
+    if (dec === 'ROZPATRZONY') {
+      return { cls: 'decision-pill dec-rozpatrzony', text: 'WNIOSEK ROZPATRZONY' };
+    }
+    if (dec === 'NIEROZPATRZONY') {
+      return { cls: 'decision-pill dec-nierozpatrzony', text: 'WNIOSEK NIE ROZPATRZONY' };
+    }
+    return { cls: 'decision-pill dec-oczekuje', text: 'W TOKU' };
+  });
+
   constructor(
     private route: ActivatedRoute,
-    private documentService: DocumentService
+    private documentService: DocumentService,
+    private udipState: UdipStateService
   ) {}
 
   ngOnInit(): void {
@@ -78,6 +147,7 @@ export class DocumentDetailComponent implements OnInit {
       next: (doc) => {
         this.document.set(doc);
         this.isLoading.set(false);
+        this.initEditCardData(doc);
         this.initExistingResponseData(doc);
       },
       error: (err: Error) => {
@@ -85,6 +155,165 @@ export class DocumentDetailComponent implements OnInit {
         this.isLoading.set(false);
       }
     });
+  }
+
+  private initEditCardData(doc: Document): void {
+    const sygn = (doc.metadata?.numerSprawy || doc.metadata?.caseNumber || doc.title.split(' - ')[0] || doc.id).trim();
+    let subj = (doc.metadata?.przedmiotZapytania as string) || doc.title;
+    if (subj.includes(' - ') && !doc.metadata?.przedmiotZapytania) {
+      const parts = subj.split(' - ');
+      parts.shift();
+      subj = parts.join(' - ');
+    }
+
+    const dateRec = (doc.metadata?.dataWplywu as string || doc.createdAt || '').substring(0, 10);
+    let dateDead = (doc.metadata?.terminOdpowiedzi as string || '').substring(0, 10);
+    if (!dateDead || dateDead.length !== 10) {
+      dateDead = this.calculateDeadline(dateRec, 14);
+    }
+
+    const rawStatus = (doc.metadata?.status || '').toLowerCase();
+    let dec = (doc.metadata?.decision as string) || '';
+    if (!dec) {
+      if (rawStatus === 'odpowiedziano' || rawStatus === 'zrealizowane' || doc.metadata?.odpowiedzZatwierdzona) {
+        dec = 'ROZPATRZONY';
+      } else if (rawStatus === 'nierozpatrzony' || rawStatus === 'odrzucony') {
+        dec = 'NIEROZPATRZONY';
+      } else {
+        dec = 'OCZEKUJE';
+      }
+    }
+
+    let stg = (doc.metadata?.stage as string) || '';
+    if (!stg) {
+      if (dec === 'ROZPATRZONY') stg = 'ODPOWIEDZ_WYSLANA';
+      else if (rawStatus === 'zapytania') stg = 'ZAPYTANIA_WYDZIALY';
+      else if (rawStatus === 'kwerenda') stg = 'KWERENDA';
+      else if (rawStatus === 'w toku' || rawStatus === 'w trakcie') stg = 'W_PRZYGOTOWANIU';
+      else stg = 'BRAK_DZIALAN';
+    }
+
+    const depts: string[] = [];
+    if (Array.isArray(doc.metadata?.departments)) {
+      doc.metadata.departments.forEach((d: string) => depts.push(d));
+    } else if (doc.metadata?.department) {
+      depts.push(doc.metadata.department as string);
+    }
+    if (depts.length === 0) {
+      depts.push('BKS');
+    }
+
+    this.editSygnatura.set(sygn);
+    this.editSubject.set(subj);
+    this.editDateReceived.set(dateRec);
+    this.editDateDeadline.set(dateDead);
+    this.editContent.set(doc.content);
+    this.editDecision.set(dec);
+    this.editStage.set(stg);
+    this.selectedDepartments.set(Array.from(new Set(depts)));
+  }
+
+  markRozpatrzony(): void {
+    this.editDecision.set('ROZPATRZONY');
+    this.editStage.set('ODPOWIEDZ_WYSLANA');
+    this.saveCard('WNIOSEK ROZPATRZONY');
+  }
+
+  markNieRozpatrzony(): void {
+    this.editDecision.set('NIEROZPATRZONY');
+    this.editStage.set('BRAK_DZIALAN');
+    this.saveCard('WNIOSEK NIE ROZPATRZONY');
+  }
+
+  onDateReceivedChange(newDate: string): void {
+    this.editDateReceived.set(newDate);
+    this.editDateDeadline.set(this.calculateDeadline(newDate, 14));
+  }
+
+  toggleDept(code: string): void {
+    const current = this.selectedDepartments();
+    if (current.includes(code)) {
+      this.selectedDepartments.set(current.filter((c) => c !== code));
+    } else {
+      this.selectedDepartments.set([...current, code]);
+    }
+  }
+
+  isDeptSelected(code: string): boolean {
+    return this.selectedDepartments().includes(code);
+  }
+
+  saveCard(actionLabel?: string): void {
+    const doc = this.document();
+    if (!doc) return;
+
+    this.isSavingCard.set(true);
+    this.cardSavedNotice.set(null);
+
+    const todayIso = new Date().toISOString().substring(0, 10);
+    const dateReplied =
+      this.editDecision() === 'ROZPATRZONY'
+        ? (doc.metadata?.dataOdpowiedzi as string) || todayIso
+        : '';
+
+    const updatePayload = {
+      title: `${this.editSygnatura()} - ${this.editSubject()}`,
+      content: this.editContent(),
+      metadata: {
+        numerSprawy: this.editSygnatura(),
+        caseNumber: this.editSygnatura(),
+        przedmiotZapytania: this.editSubject(),
+        dataWplywu: this.editDateReceived(),
+        terminOdpowiedzi: this.editDateDeadline(),
+        dataOdpowiedzi: dateReplied,
+        decision: this.editDecision(),
+        stage: this.editStage(),
+        status:
+          this.editDecision() === 'ROZPATRZONY'
+            ? 'odpowiedziano'
+            : this.editDecision() === 'NIEROZPATRZONY'
+            ? 'nierozpatrzony'
+            : 'w toku',
+        departments: this.selectedDepartments(),
+        department: this.selectedDepartments()[0] || 'BKS'
+      }
+    };
+
+    this.documentService.updateDocument(doc.id, updatePayload).subscribe({
+      next: (updatedDoc) => {
+        this.document.set(updatedDoc);
+        this.isSavingCard.set(false);
+        const msg = actionLabel
+          ? `${this.editSygnatura()}: ${actionLabel}.`
+          : `Zapisano zmiany w karcie sprawy ${this.editSygnatura()}.`;
+        this.cardSavedNotice.set(msg);
+        this.udipState.showToast(msg);
+        this.udipState.triggerReload();
+        setTimeout(() => this.cardSavedNotice.set(null), 3000);
+      },
+      error: (err: Error) => {
+        this.isSavingCard.set(false);
+        this.errorMessage.set(err.message || 'Nie udało się zaktualizować karty sprawy w backendzie.');
+      }
+    });
+  }
+
+  private calculateDeadline(dateIso: string, days: number): string {
+    if (!dateIso) return '';
+    const parts = dateIso.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return dateIso;
+    const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+    dt.setDate(dt.getDate() + days);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  formatDatePL(iso?: string): string {
+    if (!iso) return '—';
+    const p = iso.substring(0, 10).split('-');
+    return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
   }
 
   private initExistingResponseData(doc: Document): void {

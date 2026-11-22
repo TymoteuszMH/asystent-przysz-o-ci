@@ -55,6 +55,18 @@ export class DocumentService {
     );
   }
 
+  updateDocument(docId: string, dto: Partial<CreateDocumentDto>): Observable<Document> {
+    return this.http.patch<Document>(`${this.apiUrl}/${encodeURIComponent(docId)}`, dto).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  resetDocuments(): Observable<Document[]> {
+    return this.http.post<Document[]>(`${this.apiUrl}/reset`, {}).pipe(
+      catchError(this.handleError)
+    );
+  }
+
   private handleError(error: HttpErrorResponse): Observable<never> {
     let message = 'Wystąpił nieoczekiwany błąd';
     if (error.error instanceof ErrorEvent) {
