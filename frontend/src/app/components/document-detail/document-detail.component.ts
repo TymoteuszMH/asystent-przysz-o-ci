@@ -1,7 +1,7 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DocumentService } from '../../services/document.service';
 import { UdipStateService } from '../../services/udip-state.service';
 import {
@@ -132,6 +132,7 @@ export class DocumentDetailComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private documentService: DocumentService,
     private udipState: UdipStateService
   ) {}
@@ -504,7 +505,7 @@ export class DocumentDetailComponent implements OnInit {
   approveResponse(): void {
     const doc = this.document();
     const model = this.responseModel();
-    if (!doc || !model) return;
+    if (!doc || !model || this.isApproving()) return;
 
     this.isApproving.set(true);
     this.errorMessage.set(null);
@@ -522,10 +523,13 @@ export class DocumentDetailComponent implements OnInit {
       .subscribe({
         next: (updatedDoc) => {
           this.document.set(updatedDoc);
+          this.editDecision.set(updatedDoc.metadata.decision ?? '');
           this.isApproving.set(false);
-          this.approvalSuccessMessage.set(
-            'Zapisano zatwierdzoną wersję odpowiedzi.'
-          );
+          const message = 'Zatwierdzono odpowiedź. Wniosek rozpatrzony.';
+          this.approvalSuccessMessage.set(message);
+          this.udipState.showToast(message);
+          this.udipState.triggerReload();
+          void this.router.navigate(['/documents']);
         },
         error: (err: Error) => {
           this.isApproving.set(false);
