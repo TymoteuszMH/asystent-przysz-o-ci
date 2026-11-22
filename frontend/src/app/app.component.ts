@@ -185,8 +185,8 @@ export class AppComponent implements OnInit, OnDestroy {
     return this.currentUrl().startsWith('/calendar');
   }
 
-  openCalendar(date?: string): void {
-    const targetDate = date || this.calSelectedDate || this.taskService.getTodayISO();
+  openCalendar(): void {
+    const targetDate = this.calSelectedDate || this.taskService.getTodayISO();
     this.taskService.selectedDate.set(targetDate);
     if (!this.isCalendarView) {
       this.router.navigate(['/calendar']);

@@ -16,32 +16,3 @@
   font-weight: 700;
   color: var(--primary);
 }
-
-.cal-tile-header:hover {
-  opacity: 0.9;
-}
-
-.cal-open-full-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  margin-top: 6px;
-  background-color: var(--primary-soft);
-  color: var(--primary);
-  border: 1px solid #c2e7ff;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-
-.cal-open-full-btn:hover {
-  background-color: #d3e3fd;
-  color: #041e49;
-  border-color: #a8d4ff;
-  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.15);
-}
