@@ -737,11 +737,6 @@
   background: var(--bg-surface-alt);
 }
 
-.decision-btn.btn-rozpatrzony.active {
-  background: #e6f4ea;
-  border-color: #1e8e3e;
-  color: #137333;
-}
 
 .decision-btn.btn-nierozpatrzony.active {
   background: #fce8e6;
@@ -826,4 +821,12 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+}
+
+.duplicate-response {
+  margin-top: 24px;
+}
+
+.duplicate-response a {
+  color: var(--primary);
 }

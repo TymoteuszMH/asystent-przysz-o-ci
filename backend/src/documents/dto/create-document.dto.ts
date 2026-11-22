@@ -2,6 +2,11 @@ import { IsString, IsNotEmpty, IsOptional, IsArray, IsObject } from 'class-valid
 
 export class CreateDocumentDto {
   @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  duplicateOfId?: string;
+
+  @IsString()
   @IsOptional()
   id?: string;
 

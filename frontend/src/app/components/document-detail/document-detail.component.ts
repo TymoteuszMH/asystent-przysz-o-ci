@@ -41,10 +41,11 @@ export class DocumentDetailComponent implements OnInit {
   cardSavedNotice = signal<string | null>(null);
   clarificationOpen = signal(false);
   clarificationText = signal('');
+  isDuplicate = computed(() => this.document()?.metadata.decision === 'DUPLIKAT');
   awaitingClarification = computed(() => this.document()?.metadata.decision === 'DO_USCISLENIA');
   canRequestClarification = computed(() => {
     const metadata = this.document()?.metadata;
-    return !!metadata && !this.awaitingClarification() &&
+    return !!metadata && !this.isDuplicate() && !this.awaitingClarification() &&
       this.editDecision() !== 'ROZPATRZONY' && this.editDecision() !== 'NIEROZPATRZONY' &&
       this.editStage() !== 'ODPOWIEDZ_WYSLANA';
   });
@@ -117,6 +118,7 @@ export class DocumentDetailComponent implements OnInit {
     const diff = this.daysDiff();
     const doc = this.document();
 
+    if (dec === 'DUPLIKAT') return { cls: 'days-blue', text: 'Zamknięto jako duplikat' };
     if (dec === 'ROZPATRZONY' || this.editStage() === 'ODPOWIEDZ_WYSLANA') {
       const repDate = (doc?.metadata?.dataOdpowiedzi as string) || this.editDateReceived();
       return { cls: 'days-ok', text: `Rozpatrzono: ${this.formatDatePL(repDate)}` };
@@ -137,6 +139,9 @@ export class DocumentDetailComponent implements OnInit {
     const dec = this.editDecision();
     if (dec === 'ROZPATRZONY') {
       return { cls: 'decision-pill dec-rozpatrzony', text: 'WNIOSEK ROZPATRZONY' };
+    }
+    if (dec === 'DUPLIKAT') {
+      return { cls: 'decision-pill dec-oczekuje', text: 'DUPLIKAT' };
     }
     if (dec === 'DO_USCISLENIA') {
       return { cls: 'decision-pill dec-oczekuje', text: 'OCZEKUJE NA UŚCIŚLENIE' };
@@ -238,15 +243,11 @@ export class DocumentDetailComponent implements OnInit {
   }
 
   markRozpatrzony(): void {
-    this.editDecision.set('ROZPATRZONY');
-    this.editStage.set('ODPOWIEDZ_WYSLANA');
-    this.saveCard('WNIOSEK ROZPATRZONY');
+    this.saveCard('WNIOSEK ROZPATRZONY', { decision: 'ROZPATRZONY', stage: 'ODPOWIEDZ_WYSLANA' });
   }
 
   markNieRozpatrzony(): void {
-    this.editDecision.set('NIEROZPATRZONY');
-    this.editStage.set('BRAK_DZIALAN');
-    this.saveCard('WNIOSEK NIE ROZPATRZONY');
+    this.saveCard('WNIOSEK NIE ROZPATRZONY', { decision: 'NIEROZPATRZONY', stage: 'BRAK_DZIALAN' });
   }
 
   requestClarification(): void {
@@ -284,11 +285,12 @@ export class DocumentDetailComponent implements OnInit {
 
   saveCard(
     actionLabel?: string,
-    changes?: Pick<DocumentMetadata, 'decision' | 'prosbaOScislenie'>
+    changes?: Pick<DocumentMetadata, 'decision' | 'stage' | 'prosbaOScislenie'>
   ): void {
     const doc = this.document();
     if (!doc || this.isSavingCard()) return;
     const decision = changes?.decision ?? this.editDecision();
+    const stage = changes?.stage ?? this.editStage();
 
     this.isSavingCard.set(true);
     this.errorMessage.set(null);
@@ -312,7 +314,7 @@ export class DocumentDetailComponent implements OnInit {
         dataOdpowiedzi: dateReplied,
         ...changes,
         decision,
-        stage: this.editStage(),
+        stage,
         status:
           decision === 'ROZPATRZONY'
             ? 'odpowiedziano'
@@ -320,6 +322,8 @@ export class DocumentDetailComponent implements OnInit {
             ? 'nierozpatrzony'
             : decision === 'DO_USCISLENIA'
             ? 'oczekuje na uściślenie'
+            : decision === 'DUPLIKAT'
+            ? 'duplikat'
             : 'w toku',
         departments: this.selectedDepartments(),
         department: this.selectedDepartments()[0] || 'BKS'
@@ -332,6 +336,7 @@ export class DocumentDetailComponent implements OnInit {
         this.isSavingCard.set(false);
         if (changes?.decision) {
           this.editDecision.set(decision);
+          this.editStage.set(stage);
           this.clarificationOpen.set(false);
           this.clarificationText.set('');
         }

@@ -176,6 +176,24 @@
     </div>
 
     <section class="form-section">
+      <h2 class="form-section-title">Sprawdź wcześniejszy wniosek</h2>
+      <form class="archive-lookup" (ngSubmit)="findArchivedRequest()">
+        <div class="form-group">
+          <label for="archiveCaseNumber" class="form-label">Sygnatura wcześniejszego wniosku</label>
+          <input id="archiveCaseNumber" name="archiveCaseNumber" type="text" class="form-control"
+            [ngModel]="archiveCaseNumber()" (ngModelChange)="archiveCaseNumber.set($event)">
+        </div>
+        <button type="submit" class="btn btn-secondary"
+          [disabled]="isLookingUpArchive() || isSubmitting() || !archiveCaseNumber().trim()">
+          {{ isLookingUpArchive() ? 'Szukanie…' : 'Szukaj w archiwum' }}
+        </button>
+      </form>
+      @if (archiveLookupError(); as error) {
+        <p role="alert">{{ error }}</p>
+      }
+    </section>
+
+    <section class="form-section">
       <h2 class="form-section-title">Analiza formalno-merytoryczna</h2>
       <p>Analiza przesyła tytuł i treść wniosku do dostawcy modelu online. Wynik wymaga weryfikacji urzędnika.</p>
       <button type="button" class="btn btn-secondary" (click)="analyzeRequest()"
@@ -599,15 +617,32 @@
         } @else {
           <p>W archiwum tej sprawy nie ma zapisanej odpowiedzi.</p>
         }
+        @if (!prevDoc.isDuplicate) {
+          <label class="duplicate-confirmation">
+            <input type="checkbox" [checked]="duplicateConfirmed()"
+              (change)="duplicateConfirmed.set($any($event.target).checked)" [disabled]="isSubmitting()">
+            <span>Potwierdzam, że wcześniejszy wniosek jest dostępny w BIP i dotyczy tego samego żądania.</span>
+          </label>
+        }
+        @if (errorMessage(); as error) {
+          <p class="alert alert-danger" role="alert">{{ error }}</p>
+        }
       </div>
 
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" (click)="closeDocPreview()">Zamknij</button>
+        <button type="button" class="btn btn-secondary" (click)="closeDocPreview()" [disabled]="isSubmitting()">Zamknij</button>
+        @if (!prevDoc.isDuplicate) {
+          <button type="button" class="btn btn-primary" (click)="finishAsDuplicate(prevDoc)"
+            [disabled]="!duplicateConfirmed() || isSubmitting()">
+            {{ isSubmitting() ? 'Zapisywanie…' : 'Zakończ jako duplikat' }}
+          </button>
+        }
         @if (prevDoc.department) {
           <button
             type="button"
             class="btn btn-primary"
             (click)="useSimilarDocDepartment(prevDoc); closeDocPreview()"
+            [disabled]="isSubmitting()"
           >
             Przydziel do {{ prevDoc.department }}
           </button>

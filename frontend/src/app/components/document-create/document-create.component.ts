@@ -17,6 +17,10 @@ import {
 
 import { downloadDepartmentRequest } from '../../utils/department-request';
 
+type ArchivedRequestPreview = Pick<SimilarDocumentItem,
+  'id' | 'caseNumber' | 'title' | 'content' | 'applicant' | 'date' | 'department' | 'status' | 'archivedResponse' | 'isDuplicate'
+>;
+
 @Component({
   selector: 'app-document-create',
   standalone: true,
@@ -64,7 +68,11 @@ export class DocumentCreateComponent {
   savedRequestInModal = signal<DepartmentRequestPlan | null>(null);
   requestInternalDeadline = signal<string>(this.calculateInternalDeadline());
   requestNotes = signal<string>('');
-  previewModalDoc = signal<SimilarDocumentItem | null>(null);
+  previewModalDoc = signal<ArchivedRequestPreview | null>(null);
+  archiveCaseNumber = signal('');
+  archiveLookupError = signal<string | null>(null);
+  isLookingUpArchive = signal(false);
+  duplicateConfirmed = signal(false);
 
   // Form submission state
   isSubmitting = signal<boolean>(false);
@@ -308,23 +316,64 @@ export class DocumentCreateComponent {
     });
   }
 
-  openDocPreview(doc: SimilarDocumentItem): void {
+  findArchivedRequest(): void {
+    const caseNumber = this.archiveCaseNumber().trim();
+    if (!caseNumber || this.isLookingUpArchive()) return;
+
+    this.archiveLookupError.set(null);
+    this.isLookingUpArchive.set(true);
+    this.documentService.getDocumentById(caseNumber).subscribe({
+      next: doc => {
+        this.isLookingUpArchive.set(false);
+        this.openDocPreview({
+          id: doc.id,
+          caseNumber: doc.metadata.numerSprawy || doc.metadata.caseNumber || `Nr ${doc.id}`,
+          title: doc.title,
+          content: doc.content,
+          applicant: doc.metadata.wnioskodawca || doc.metadata.applicant || doc.author,
+          date: (doc.metadata.dataWplywu || doc.createdAt).substring(0, 10),
+          department: doc.metadata.department,
+          status: doc.metadata.status,
+          archivedResponse: doc.metadata.wersjaAnonimizowana || doc.metadata.odpowiedzZatwierdzona,
+          isDuplicate: doc.metadata.decision === 'DUPLIKAT',
+        });
+      },
+      error: (error: Error) => {
+        this.isLookingUpArchive.set(false);
+        this.archiveLookupError.set(error.message);
+      },
+    });
+  }
+
+  openDocPreview(doc: ArchivedRequestPreview): void {
+    this.duplicateConfirmed.set(false);
+    this.errorMessage.set(null);
     this.previewModalDoc.set(doc);
   }
 
   closeDocPreview(): void {
+    if (this.isSubmitting()) return;
     this.previewModalDoc.set(null);
   }
 
-  useSimilarDocDepartment(doc: SimilarDocumentItem): void {
+  useSimilarDocDepartment(doc: ArchivedRequestPreview): void {
     if (doc.department) {
       this.department.set(doc.department);
     }
   }
 
+  finishAsDuplicate(original: ArchivedRequestPreview): void {
+    if (!this.duplicateConfirmed() || original.isDuplicate) return;
+    this.onSubmit(original.id);
+  }
+
   // --- Zapis wniosku do rejestru ---
-  onSubmit(): void {
-    if (this.anonymization?.isReviewPending || this.isSubmitting()) return;
+  onSubmit(duplicateOfId?: string): void {
+    if (this.isSubmitting() || this.isReadingFile()) return;
+    if (this.anonymization?.isReviewPending) {
+      this.errorMessage.set('Zakończ przegląd anonimizacji przed zapisaniem wniosku.');
+      return;
+    }
     const titleVal = this.title().trim();
     const contentVal = this.content().trim();
 
@@ -354,6 +403,7 @@ export class DocumentCreateComponent {
     const recommendedDepts = this.analysisResult()?.suggestedDepartments.map((d) => d.name) || [];
 
     const dto: CreateDocumentDto = {
+      duplicateOfId,
       title: titleVal,
       content: contentVal,
       author: applicant,
@@ -379,6 +429,12 @@ export class DocumentCreateComponent {
       next: (createdDoc) => {
         this.udipState.triggerReload();
         this.isSubmitting.set(false);
+        if (duplicateOfId) {
+          this.previewModalDoc.set(null);
+          this.udipState.showToast('Zamknięto wniosek jako duplikat. Odpowiedź jest dostępna w karcie sprawy.');
+          void this.router.navigate(['/documents', createdDoc.id]);
+          return;
+        }
         this.successMessage.set('Wniosek został pomyślnie zarejestrowany w systemie!');
         setTimeout(() => {
           this.router.navigate(['/documents', createdDoc.id]);

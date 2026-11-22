@@ -70,7 +70,8 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     ZAPYTANIA_WYDZIALY: 'Zapytania w wydziałach',
     KWERENDA: 'Kwerenda',
     W_PRZYGOTOWANIU: 'W przygotowaniu',
-    ODPOWIEDZ_WYSLANA: 'Odpowiedź wysłana'
+    ODPOWIEDZ_WYSLANA: 'Odpowiedź wysłana',
+    ZAMKNIETY_DUPLIKAT: 'Zamknięty jako duplikat'
   };
 
   private subs: Subscription = new Subscription();
@@ -206,7 +207,8 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     const filtered = list.filter(item => {
       // Widok z lewego menu
       const isRes = this.isItemResolved(item);
-      const isUrg = !isRes && item.diffDays <= 1;
+      const isClosed = this.isItemClosed(item);
+      const isUrg = !isClosed && item.diffDays <= 1;
 
       if (this.activeView === 'URGENT' && !isUrg) return false;
       if (this.activeView === 'RESOLVED' && !isRes) return false;
@@ -222,10 +224,10 @@ export class DocumentListComponent implements OnInit, OnDestroy {
 
       if (this.filterDecision !== 'ALL' && item.decision !== this.filterDecision) return false;
 
-      if (this.filterDeadlineScope === 'OVERDUE' && (isRes || item.diffDays >= 0)) return false;
-      if (this.filterDeadlineScope === 'TODAY' && (isRes || item.diffDays !== 0)) return false;
-      if (this.filterDeadlineScope === 'TOMORROW' && (isRes || item.diffDays !== 1)) return false;
-      if (this.filterDeadlineScope === 'NEXT_7' && (isRes || item.diffDays < 0 || item.diffDays > 7)) return false;
+      if (this.filterDeadlineScope === 'OVERDUE' && (isClosed || item.diffDays >= 0)) return false;
+      if (this.filterDeadlineScope === 'TODAY' && (isClosed || item.diffDays !== 0)) return false;
+      if (this.filterDeadlineScope === 'TOMORROW' && (isClosed || item.diffDays !== 1)) return false;
+      if (this.filterDeadlineScope === 'NEXT_7' && (isClosed || item.diffDays < 0 || item.diffDays > 7)) return false;
 
       // Szukajka
       if (q) {
@@ -241,8 +243,8 @@ export class DocumentListComponent implements OnInit, OnDestroy {
       if (this.filterSort === 'NEWEST') return b.dateReceived.localeCompare(a.dateReceived);
       if (this.filterSort === 'OLDEST') return a.dateReceived.localeCompare(b.dateReceived);
 
-      const resA = this.isItemResolved(a);
-      const resB = this.isItemResolved(b);
+      const resA = this.isItemClosed(a);
+      const resB = this.isItemClosed(b);
       if (resA && !resB) return 1;
       if (!resA && resB) return -1;
       return a.dateDeadline.localeCompare(b.dateDeadline);
@@ -262,7 +264,8 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     ROZPATRZONY: 'rozpatrzony',
     NIEROZPATRZONY: 'nierozpatrzony',
     OCZEKUJE: 'w toku',
-    DO_USCISLENIA: 'oczekuje na uściślenie'
+    DO_USCISLENIA: 'oczekuje na uściślenie',
+    DUPLIKAT: 'duplikat'
   };
 
   get activeTags(): { key: string; text: string }[] {
@@ -289,7 +292,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   private updateCounts(): void {
     const list = this.documents.map(d => this.mapDocToViewItem(d));
     const all = list.length;
-    const urgent = list.filter(item => !this.isItemResolved(item) && item.diffDays <= 1).length;
+    const urgent = list.filter(item => !this.isItemClosed(item) && item.diffDays <= 1).length;
     const resolved = list.filter(item => this.isItemResolved(item)).length;
 
     this.udipState.setCounts({ all, urgent, resolved });
@@ -297,6 +300,10 @@ export class DocumentListComponent implements OnInit, OnDestroy {
 
   private isItemResolved(item: CaseViewItem): boolean {
     return item.decision === 'ROZPATRZONY' || item.stage === 'ODPOWIEDZ_WYSLANA';
+  }
+
+  private isItemClosed(item: CaseViewItem): boolean {
+    return this.isItemResolved(item) || item.decision === 'DUPLIKAT';
   }
 
   private mapDocToViewItem(doc: Document): CaseViewItem {
@@ -360,6 +367,8 @@ export class DocumentListComponent implements OnInit, OnDestroy {
       decCls = 'dec-nierozpatrzony';
     } else if (decision === 'DO_USCISLENIA') {
       decisionLabel = 'OCZEKUJE NA UŚCIŚLENIE';
+    } else if (decision === 'DUPLIKAT') {
+      decisionLabel = 'DUPLIKAT';
     }
 
     const stageLabel = this.STAGE_LABELS[stage] || stage;
@@ -370,7 +379,9 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     let badgeCls = 'days-blue';
     let badgeTxt = `${diffDays} dni`;
 
-    if (resolved) {
+    if (decision === 'DUPLIKAT') {
+      badgeTxt = 'Zamknięto';
+    } else if (resolved) {
       rowCls = 'row-resolved';
       badgeCls = 'days-ok';
       badgeTxt = 'Rozpatrzono';

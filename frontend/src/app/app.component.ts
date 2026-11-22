@@ -257,7 +257,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private isResolved(doc: Document): boolean {
     const status = (doc.metadata?.status || '').toLowerCase();
-    return status === 'odpowiedziano' || status === 'zrealizowane' || !!doc.metadata?.dataOdpowiedzi;
+    return status === 'odpowiedziano' || status === 'zrealizowane' ||
+      doc.metadata.decision === 'DUPLIKAT' || !!doc.metadata.dataOdpowiedzi;
   }
 
   private renderCalendar(): void {

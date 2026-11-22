@@ -657,3 +657,21 @@
   margin: 6px 0 0;
   white-space: pre-wrap;
 }
+
+.duplicate-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.archive-lookup {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.archive-lookup .form-group {
+  flex: 1 1 240px;
+}

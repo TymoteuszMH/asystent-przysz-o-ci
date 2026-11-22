@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { Document } from './document.interface';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
@@ -22,6 +22,7 @@ export interface SimilarDocumentItem {
   matchedKeywords: string[];
   daysAgo: number;
   archivedResponse?: string;
+  isDuplicate: boolean;
 }
 
 export interface DepartmentRecommendation {
@@ -690,9 +691,51 @@ export class DocumentsService {
       metadata: createDocumentDto.metadata ?? {},
     };
 
+    if (createDocumentDto.duplicateOfId) {
+      this.closeAsDuplicate(newDocument, createDocumentDto.duplicateOfId);
+    }
     this.saveDocuments([...this.documents, newDocument]);
 
     return newDocument;
+  }
+
+  private closeAsDuplicate(document: Document, originalId: string): void {
+    const original = this.findById(originalId);
+    if (original.metadata.decision === 'DUPLIKAT' || !original.content.trim()) {
+      throw new BadRequestException('Wybierz pierwotny wniosek zawierający treść z archiwum.');
+    }
+    if (!document.title.trim() || !document.content.trim()) {
+      throw new BadRequestException('Podaj temat i treść nowego wniosku.');
+    }
+
+    const caseNumber = String(original.metadata.numerSprawy || original.metadata.caseNumber || `Nr ${original.id}`);
+    const applicant = String(original.metadata.wnioskodawca || original.metadata.applicant || original.author || '');
+    const fields = this.detectSensitiveData(original.content, applicant);
+    const fragments = fields.map(field => field.value).sort((a, b) => b.length - a.length)
+      .map(value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const previousRequest = fragments.length
+      ? original.content.replace(new RegExp(fragments.join('|'), 'g'), '[zanonimizowano]')
+      : original.content;
+
+    document.metadata = {
+      ...document.metadata,
+      decision: 'DUPLIKAT',
+      stage: 'ZAMKNIETY_DUPLIKAT',
+      status: 'duplikat',
+      duplikatWniosku: {
+        sourceId: original.id,
+        caseNumber,
+        responseText: [
+          'Informacja o duplikacie wniosku',
+          '',
+          'Państwa wniosek jest duplikatem wcześniejszego wniosku dostępnego w Biuletynie Informacji Publicznej.',
+          `Numer wcześniejszego wniosku: ${caseNumber}`,
+          '',
+          'Treść wcześniejszego wniosku:',
+          previousRequest,
+        ].join('\n'),
+      },
+    };
   }
 
   /**
@@ -790,6 +833,7 @@ export class DocumentsService {
           similarityPercentage: finalPercentage,
           matchedKeywords: uniqueMatched.slice(0, 8),
           daysAgo: diffDays,
+          isDuplicate: doc.metadata.decision === 'DUPLIKAT',
           archivedResponse: (doc.metadata.wersjaAnonimizowana || doc.metadata.odpowiedzZatwierdzona) as string | undefined,
         });
       }
@@ -1279,6 +1323,9 @@ export class DocumentsService {
    */
   approveResponse(docId: string, dto: ApproveResponseDto): Document {
     const previous = this.findById(docId);
+    if (previous.metadata.decision === 'DUPLIKAT') {
+      throw new ConflictException('Ten wniosek zamknięto jako duplikat.');
+    }
     const document = { ...previous, metadata: { ...previous.metadata } };
     const nowIso = new Date().toISOString();
     const today = nowIso.substring(0, 10);

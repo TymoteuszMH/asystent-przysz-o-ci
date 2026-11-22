@@ -71,6 +71,41 @@ describe('DocumentsService', () => {
     expect(result.anonymizedPreviewText).toContain('[zanonimizowano');
   });
 
+  it('should save a closed duplicate with the original case number and anonymized request', () => {
+    const original = service.create({
+      title: 'Remont chodnika',
+      content: 'Proszę o informację o remoncie chodnika. Kontakt: test@example.org.',
+      metadata: { numerSprawy: 'BKS.1.2026' },
+    });
+
+    const duplicate = service.create({
+      title: 'Remont chodnika',
+      content: 'Proszę ponownie o informację o remoncie chodnika.',
+      duplicateOfId: original.id,
+    });
+    const saved = service.findById(duplicate.id);
+    expect(saved.metadata.decision).toBe('DUPLIKAT');
+    expect(saved.metadata.stage).toBe('ZAMKNIETY_DUPLIKAT');
+    expect(saved.metadata.duplikatWniosku).toMatchObject({
+      sourceId: original.id,
+      caseNumber: 'BKS.1.2026',
+      responseText: expect.stringContaining('Proszę o informację o remoncie chodnika. Kontakt: [zanonimizowano].'),
+    });
+    expect(saved.metadata.duplikatWniosku).toMatchObject({
+      responseText: expect.stringContaining('Państwa wniosek jest duplikatem'),
+    });
+  });
+
+  it('should not save a duplicate when the original request does not exist', () => {
+    const count = service.findAll().length;
+    expect(() => service.create({
+      title: 'Test',
+      content: 'Test',
+      duplicateOfId: 'missing',
+    })).toThrow();
+    expect(service.findAll()).toHaveLength(count);
+  });
+
   it('should approve response and mark document as answered with anonymization metadata', () => {
     service.update('1', { metadata: { decision: 'OCZEKUJE' } });
     const approvedDoc = service.approveResponse('1', {

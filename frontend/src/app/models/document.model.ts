@@ -81,6 +81,7 @@ export interface DocumentMetadata {
   departments?: string[];
   stage?: string;
   decision?: string;
+  duplikatWniosku?: { sourceId: string; caseNumber: string; responseText: string };
   prosbaOScislenie?: { text: string; date: string };
   status?: string;
   zbiezneWnioskiIds?: string[];
@@ -108,6 +109,7 @@ export interface Document {
 }
 
 export interface CreateDocumentDto {
+  duplicateOfId?: string;
   id?: string;
   title: string;
   content: string;
@@ -138,6 +140,7 @@ export interface SimilarDocumentItem {
   matchedKeywords: string[];
   daysAgo: number;
   archivedResponse?: string;
+  isDuplicate?: boolean;
 }
 
 export interface DepartmentRecommendation {

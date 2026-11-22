@@ -94,26 +94,27 @@
 
       <!-- 2. DECISION PANEL: Przyciski decyzji, treść wniosku, wydziały -->
       <section class="decision-panel">
-        <div class="decision-buttons-grid">
-          <button
-            type="button"
-            class="decision-btn btn-rozpatrzony"
-            [class.active]="editDecision() === 'ROZPATRZONY'"
-            (click)="markRozpatrzony()"
-            [disabled]="isSavingCard() || isApproving() || awaitingClarification()"
-          >
-            WNIOSEK ROZPATRZONY
-          </button>
-          <button
-            type="button"
-            class="decision-btn btn-nierozpatrzony"
-            [class.active]="editDecision() === 'NIEROZPATRZONY'"
-            (click)="markNieRozpatrzony()"
-            [disabled]="isSavingCard() || isApproving() || awaitingClarification()"
-          >
-            WNIOSEK NIE ROZPATRZONY
-          </button>
-        </div>
+        @if (editDecision() !== 'ROZPATRZONY' && !isDuplicate()) {
+          <div class="decision-buttons-grid">
+            <button
+              type="button"
+              class="decision-btn btn-rozpatrzony"
+              (click)="markRozpatrzony()"
+              [disabled]="isSavingCard() || isApproving() || awaitingClarification() || isDuplicate()"
+            >
+              WNIOSEK ROZPATRZONY
+            </button>
+            <button
+              type="button"
+              class="decision-btn btn-nierozpatrzony"
+              [class.active]="editDecision() === 'NIEROZPATRZONY'"
+              (click)="markNieRozpatrzony()"
+              [disabled]="isSavingCard() || isApproving() || awaitingClarification() || isDuplicate()"
+            >
+              WNIOSEK NIE ROZPATRZONY
+            </button>
+          </div>
+        }
 
         <div class="field-box">
           <label for="detailContent">Treść wniosku</label>
@@ -218,7 +219,17 @@
       </section>
     </div>
 
-    @if (!awaitingClarification()) {
+    @if (doc.metadata.duplikatWniosku; as duplicate) {
+      <section class="clarification-section duplicate-response" aria-labelledby="duplicate-response-heading">
+        <h2 id="duplicate-response-heading">Odpowiedź w sprawie duplikatu</h2>
+        <a [routerLink]="['/documents', duplicate.sourceId]" target="_blank" rel="noopener">Otwórz wcześniejszy wniosek {{ duplicate.caseNumber }} w nowej karcie</a>
+        <pre class="official-letter-paper">{{ duplicate.responseText }}</pre>
+        <button type="button" class="btn btn-secondary"
+          (click)="downloadAsText('odpowiedz-duplikat.txt', duplicate.responseText)">Pobierz odpowiedź TXT</button>
+      </section>
+    }
+
+    @if (!awaitingClarification() && !isDuplicate()) {
     <!-- SEKCJA: PRZYGOTOWANIE MODELU ODPOWIEDZI I ANONIMIZACJA -->
     <div class="card response-workbench-card" style="margin-top: 28px;">
       <div class="workbench-header">
