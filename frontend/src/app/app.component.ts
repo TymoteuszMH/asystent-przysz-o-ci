@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -6,6 +6,7 @@ import { UdipStateService } from './services/udip-state.service';
 import { DocumentService } from './services/document.service';
 import { Document } from './models/document.model';
 import { NewRequestModalComponent } from './components/new-request-modal/new-request-modal.component';
+import { TaskService } from './task-calendar/task.service';
 
 interface CalCell {
   day: number | null;
@@ -60,7 +61,8 @@ export class AppComponent implements OnInit, OnDestroy {
   constructor(
     private router: Router,
     private udipState: UdipStateService,
-    private documentService: DocumentService
+    private documentService: DocumentService,
+    public taskService: TaskService
   ) {}
 
   ngOnInit(): void {
@@ -164,6 +166,16 @@ export class AppComponent implements OnInit, OnDestroy {
     this.udipState.setFilterState({ activeView: view });
     if (this.router.url !== '/documents') {
       this.router.navigate(['/documents']);
+    }
+  }
+
+  get isCalendarView(): boolean {
+    return this.router.url === '/calendar';
+  }
+
+  openCalendar(): void {
+    if (this.router.url !== '/calendar') {
+      this.router.navigate(['/calendar']);
     }
   }
 
