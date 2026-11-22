@@ -100,6 +100,7 @@
             class="decision-btn btn-rozpatrzony"
             [class.active]="editDecision() === 'ROZPATRZONY'"
             (click)="markRozpatrzony()"
+            [disabled]="isSavingCard() || isApproving() || awaitingClarification()"
           >
             WNIOSEK ROZPATRZONY
           </button>
@@ -108,6 +109,7 @@
             class="decision-btn btn-nierozpatrzony"
             [class.active]="editDecision() === 'NIEROZPATRZONY'"
             (click)="markNieRozpatrzony()"
+            [disabled]="isSavingCard() || isApproving() || awaitingClarification()"
           >
             WNIOSEK NIE ROZPATRZONY
           </button>
@@ -122,6 +124,66 @@
             (ngModelChange)="editContent.set($event)"
           ></textarea>
         </div>
+
+        @if (departmentRequests(doc); as requests) {
+          @if (requests.length) {
+            <section class="clarification-section" aria-label="Prośby do wydziałów">
+              <h3>Prośby do wydziałów</h3>
+              @for (plan of requests; track plan.department) {
+                <div class="material-entry">
+                  <details>
+                    <summary>{{ plan.department }} · {{ formatDatePL(plan.deadline) }}</summary>
+                    <p>{{ plan.notes }}</p>
+                  </details>
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="downloadRequest(doc, plan)"
+                    [attr.aria-label]="'Pobierz prośbę do ' + plan.department + ' jako TXT'">
+                    Pobierz TXT
+                  </button>
+                </div>
+              }
+            </section>
+          }
+        }
+
+        <section class="clarification-section" aria-labelledby="clarification-heading">
+          <h3 id="clarification-heading">Uściślenie żądania</h3>
+          @if (doc.metadata.prosbaOScislenie; as clarification) {
+            <p><strong>Zapisana prośba</strong> · {{ formatDatePL(clarification.date) }}</p>
+            <p class="clarification-text">{{ clarification.text }}</p>
+            <button type="button" class="btn btn-secondary"
+              (click)="downloadAsText('prosba-o-uscislenie.txt', clarification.text)">
+              Pobierz prośbę jako TXT
+            </button>
+          }
+          @if (awaitingClarification()) {
+            <p>Sprawa oczekuje na uzupełnienie. Po jego otrzymaniu uzupełnij treść wniosku powyżej i wznów obsługę.</p>
+            <button type="button" class="btn btn-primary" (click)="reopenAfterClarification()" [disabled]="isSavingCard()">
+              Wznów sprawę
+            </button>
+          } @else if (canRequestClarification()) {
+            @if (clarificationOpen()) {
+              <div class="field-box">
+                <label for="clarificationText">Treść prośby do wnioskodawcy</label>
+                <textarea id="clarificationText" rows="4" class="form-control"
+                  [ngModel]="clarificationText()" (ngModelChange)="clarificationText.set($event)"
+                  placeholder="Wskaż, który fragment żądania wymaga wyjaśnienia i jakich informacji brakuje."></textarea>
+              </div>
+              <div class="clarification-actions">
+                <button type="button" class="btn btn-primary" (click)="requestClarification()"
+                  [disabled]="isSavingCard() || isApproving() || isGeneratingResponse() || isSavingMaterials() || !clarificationText().trim()">
+                  Zapisz prośbę i zamknij do uzupełnienia
+                </button>
+                <button type="button" class="btn btn-secondary" (click)="clarificationOpen.set(false)" [disabled]="isSavingCard()">
+                  Anuluj
+                </button>
+              </div>
+            } @else {
+              <button type="button" class="btn btn-secondary" (click)="clarificationOpen.set(true)" [disabled]="isSavingCard() || isApproving()">
+                Przygotuj prośbę o uściślenie
+              </button>
+            }
+          }
+        </section>
 
         <div>
           <div class="section-heading" style="margin-bottom:8px;">Wydziały / biura UMB</div>
@@ -156,6 +218,7 @@
       </section>
     </div>
 
+    @if (!awaitingClarification()) {
     <!-- SEKCJA: PRZYGOTOWANIE MODELU ODPOWIEDZI I ANONIMIZACJA -->
     <div class="card response-workbench-card" style="margin-top: 28px;">
       <div class="workbench-header">
@@ -175,10 +238,6 @@
 
       <!-- KROK 1: Wprowadzenie materiałów / odpowiedzi z wydziału -->
       <div class="dept-input-section">
-        @if (doc.metadata.planZapytaniaDoWydzialu; as plan) {
-          <p><strong>Projekt prośby do {{ plan.department }}</strong> · Termin wewnętrzny: {{ formatDatePL(plan.deadline) }}</p>
-          <p>{{ plan.notes }}</p>
-        }
         @if (departmentMaterials().length) {
           <h3>Materiały zapisane w sprawie</h3>
           @for (material of departmentMaterials(); track $index) {
@@ -188,7 +247,7 @@
                 <p>{{ material.text }}</p>
               </details>
               <button type="button" class="btn btn-secondary btn-sm" (click)="removeMaterial($index)"
-                [disabled]="isSavingMaterials() || isGeneratingResponse()" [attr.aria-label]="'Usuń materiał: ' + material.department">Usuń</button>
+                [disabled]="isSavingCard() || isSavingMaterials() || isGeneratingResponse()" [attr.aria-label]="'Usuń materiał: ' + material.department">Usuń</button>
             </div>
           }
         }
@@ -220,9 +279,9 @@
 
         <div class="material-actions">
           <label for="materialFile">Wczytaj stanowisko (TXT lub PDF)</label>
-          <input id="materialFile" type="file" accept=".txt,.pdf" (change)="importMaterial($event)" [disabled]="isReadingMaterial()">
+          <input id="materialFile" type="file" accept=".txt,.pdf" (change)="importMaterial($event)" [disabled]="isReadingMaterial() || isSavingCard()">
           <button type="button" class="btn btn-secondary" (click)="addMaterial()"
-            [disabled]="isSavingMaterials() || isReadingMaterial() || isGeneratingResponse() || !materialDepartment().trim() || !departmentFeedback().trim()">
+            [disabled]="isSavingCard() || isSavingMaterials() || isReadingMaterial() || isGeneratingResponse() || !materialDepartment().trim() || !departmentFeedback().trim()">
             {{ isSavingMaterials() ? 'Zapisywanie…' : 'Dodaj materiał do sprawy' }}
           </button>
         </div>
@@ -234,7 +293,7 @@
             type="button"
             class="btn btn-primary"
             (click)="generateResponse()"
-            [disabled]="isGeneratingResponse() || isSavingMaterials() || isReadingMaterial() || (!departmentFeedback().trim() && !departmentMaterials().length)"
+            [disabled]="isSavingCard() || isGeneratingResponse() || isSavingMaterials() || isReadingMaterial() || (!departmentFeedback().trim() && !departmentMaterials().length)"
           >
             @if (isGeneratingResponse()) {
               <span class="btn-spinner"></span>
@@ -419,7 +478,7 @@
                   type="button"
                   class="btn btn-primary btn-approve"
                   (click)="approveResponse()"
-                  [disabled]="isApproving()"
+                  [disabled]="isApproving() || isSavingCard()"
                 >
                   @if (isApproving()) {
                     <span class="btn-spinner"></span>
@@ -438,5 +497,6 @@
         </div>
       }
     </div>
+    }
   }
 </div>

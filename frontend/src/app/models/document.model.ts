@@ -57,6 +57,14 @@ export interface ApproveResponseDto {
   officerNote?: string;
 }
 
+export interface DepartmentRequestPlan {
+  department: string;
+  deadline: string;
+  notes: string;
+  contactEmail?: string;
+  similarCases?: string[];
+}
+
 export interface DocumentMetadata {
   numerSprawy?: string;
   caseNumber?: string;
@@ -73,11 +81,13 @@ export interface DocumentMetadata {
   departments?: string[];
   stage?: string;
   decision?: string;
+  prosbaOScislenie?: { text: string; date: string };
   status?: string;
   zbiezneWnioskiIds?: string[];
   rekomendowaneWydzialy?: string[];
   prosbaWyslanaDo?: string[];
-  planZapytaniaDoWydzialu?: { department: string; deadline: string; notes: string };
+  planZapytaniaDoWydzialu?: DepartmentRequestPlan;
+  planyZapytanDoWydzialow?: DepartmentRequestPlan[];
   materialyWydzialow?: DepartmentMaterial[];
   odpowiedzZatwierdzona?: string;
   wersjaAnonimizowana?: string;

@@ -5,7 +5,6 @@ import { Subscription, filter } from 'rxjs';
 import { UdipStateService } from './services/udip-state.service';
 import { DocumentService } from './services/document.service';
 import { Document } from './models/document.model';
-import { NewRequestModalComponent } from './components/new-request-modal/new-request-modal.component';
 import { TaskService } from './task-calendar/task.service';
 
 interface CalCell {
@@ -18,14 +17,13 @@ interface CalCell {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, NewRequestModalComponent],
+  imports: [CommonModule, RouterOutlet],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
 export class AppComponent implements OnInit, OnDestroy {
   title = 'UDIP Bydgoszcz – Asystent Urzędnika';
   drawerCollapsed = false;
-  isNewModalOpen = false;
 
   globalSearch = '';
   selectedYear = 'ALL';
@@ -134,7 +132,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   get isNewRequestUnavailable(): boolean {
-    return this.isNewModalOpen || this.router.isActive('/documents/new', {
+    return this.router.isActive('/documents/new', {
       paths: 'exact',
       queryParams: 'ignored',
       matrixParams: 'ignored',
@@ -142,20 +140,9 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
-  openNewModal(): void {
+  openRequestCreator(): void {
     if (this.isNewRequestUnavailable) return;
-    this.isNewModalOpen = true;
-  }
-
-  closeNewModal(): void {
-    this.isNewModalOpen = false;
-  }
-
-  onNewCaseCreated(doc: Document): void {
-    this.loadDocumentsForCalendar();
-    if (this.router.url !== '/documents') {
-      this.router.navigate(['/documents']);
-    }
+    void this.router.navigate(['/documents/new']);
   }
 
   toggleDrawer(): void {

@@ -6,10 +6,15 @@ import { DocumentService } from '../../services/document.service';
 import { UdipStateService } from '../../services/udip-state.service';
 import {
   Document,
+  DocumentMetadata,
   ResponseModelResult,
   SensitiveField,
-  DepartmentMaterial
+  DepartmentMaterial,
+  DepartmentRequestPlan
 } from '../../models/document.model';
+
+import { downloadDepartmentRequest } from '../../utils/department-request';
+import { downloadTextFile } from '../../utils/text-download';
 
 @Component({
   selector: 'app-document-detail',
@@ -34,6 +39,15 @@ export class DocumentDetailComponent implements OnInit {
   selectedDepartments = signal<string[]>([]);
   isSavingCard = signal<boolean>(false);
   cardSavedNotice = signal<string | null>(null);
+  clarificationOpen = signal(false);
+  clarificationText = signal('');
+  awaitingClarification = computed(() => this.document()?.metadata.decision === 'DO_USCISLENIA');
+  canRequestClarification = computed(() => {
+    const metadata = this.document()?.metadata;
+    return !!metadata && !this.awaitingClarification() &&
+      this.editDecision() !== 'ROZPATRZONY' && this.editDecision() !== 'NIEROZPATRZONY' &&
+      this.editStage() !== 'ODPOWIEDZ_WYSLANA';
+  });
 
   readonly UMB_DEPTS = [
     { code: 'BKS', name: 'Biuro Komunikacji Społecznej' },
@@ -123,6 +137,9 @@ export class DocumentDetailComponent implements OnInit {
     const dec = this.editDecision();
     if (dec === 'ROZPATRZONY') {
       return { cls: 'decision-pill dec-rozpatrzony', text: 'WNIOSEK ROZPATRZONY' };
+    }
+    if (dec === 'DO_USCISLENIA') {
+      return { cls: 'decision-pill dec-oczekuje', text: 'OCZEKUJE NA UŚCIŚLENIE' };
     }
     if (dec === 'NIEROZPATRZONY') {
       return { cls: 'decision-pill dec-nierozpatrzony', text: 'WNIOSEK NIE ROZPATRZONY' };
@@ -232,6 +249,21 @@ export class DocumentDetailComponent implements OnInit {
     this.saveCard('WNIOSEK NIE ROZPATRZONY');
   }
 
+  requestClarification(): void {
+    const text = this.clarificationText().trim();
+    if (!text || !this.canRequestClarification() || this.isApproving() || this.isGeneratingResponse() || this.isSavingMaterials()) return;
+
+    this.saveCard('Zapisano prośbę o uściślenie i zamknięto sprawę do czasu uzupełnienia', {
+      decision: 'DO_USCISLENIA',
+      prosbaOScislenie: { text, date: new Date().toISOString() },
+    });
+  }
+
+  reopenAfterClarification(): void {
+    if (!this.awaitingClarification()) return;
+    this.saveCard('Wznowiono obsługę sprawy', { decision: 'OCZEKUJE' });
+  }
+
   onDateReceivedChange(newDate: string): void {
     this.editDateReceived.set(newDate);
     this.editDateDeadline.set(this.calculateDeadline(newDate, 14));
@@ -250,16 +282,21 @@ export class DocumentDetailComponent implements OnInit {
     return this.selectedDepartments().includes(code);
   }
 
-  saveCard(actionLabel?: string): void {
+  saveCard(
+    actionLabel?: string,
+    changes?: Pick<DocumentMetadata, 'decision' | 'prosbaOScislenie'>
+  ): void {
     const doc = this.document();
-    if (!doc) return;
+    if (!doc || this.isSavingCard()) return;
+    const decision = changes?.decision ?? this.editDecision();
 
     this.isSavingCard.set(true);
+    this.errorMessage.set(null);
     this.cardSavedNotice.set(null);
 
     const todayIso = new Date().toISOString().substring(0, 10);
     const dateReplied =
-      this.editDecision() === 'ROZPATRZONY'
+      decision === 'ROZPATRZONY'
         ? (doc.metadata?.dataOdpowiedzi as string) || todayIso
         : '';
 
@@ -273,13 +310,16 @@ export class DocumentDetailComponent implements OnInit {
         dataWplywu: this.editDateReceived(),
         terminOdpowiedzi: this.editDateDeadline(),
         dataOdpowiedzi: dateReplied,
-        decision: this.editDecision(),
+        ...changes,
+        decision,
         stage: this.editStage(),
         status:
-          this.editDecision() === 'ROZPATRZONY'
+          decision === 'ROZPATRZONY'
             ? 'odpowiedziano'
-            : this.editDecision() === 'NIEROZPATRZONY'
+            : decision === 'NIEROZPATRZONY'
             ? 'nierozpatrzony'
+            : decision === 'DO_USCISLENIA'
+            ? 'oczekuje na uściślenie'
             : 'w toku',
         departments: this.selectedDepartments(),
         department: this.selectedDepartments()[0] || 'BKS'
@@ -290,6 +330,11 @@ export class DocumentDetailComponent implements OnInit {
       next: (updatedDoc) => {
         this.document.set(updatedDoc);
         this.isSavingCard.set(false);
+        if (changes?.decision) {
+          this.editDecision.set(decision);
+          this.clarificationOpen.set(false);
+          this.clarificationText.set('');
+        }
         const msg = actionLabel
           ? `${this.editSygnatura()}: ${actionLabel}.`
           : `Zapisano zmiany w karcie sprawy ${this.editSygnatura()}.`;
@@ -379,7 +424,7 @@ export class DocumentDetailComponent implements OnInit {
 
   private saveMaterials(materials: DepartmentMaterial[], onSaved?: () => void): void {
     const doc = this.document();
-    if (!doc || this.isSavingMaterials() || this.isGeneratingResponse()) return;
+    if (!doc || this.isSavingCard() || this.isSavingMaterials() || this.isGeneratingResponse()) return;
     this.isSavingMaterials.set(true);
     this.materialMessage.set(null);
     this.documentService.updateDocument(doc.id, { metadata: { materialyWydzialow: materials } }).subscribe({
@@ -399,7 +444,7 @@ export class DocumentDetailComponent implements OnInit {
   // --- Generowanie modelu odpowiedzi urzędowej ---
   generateResponse(): void {
     const doc = this.document();
-    if (!doc || this.isGeneratingResponse() || this.isSavingMaterials() || this.isReadingMaterial()) return;
+    if (!doc || this.awaitingClarification() || this.isSavingCard() || this.isGeneratingResponse() || this.isSavingMaterials() || this.isReadingMaterial()) return;
     const current = this.departmentFeedback().trim();
     const materials = this.departmentMaterials();
     const pending = current ? [{ department: this.materialDepartment().trim() || 'Wydział merytoryczny', text: current }] : [];
@@ -505,7 +550,7 @@ export class DocumentDetailComponent implements OnInit {
   approveResponse(): void {
     const doc = this.document();
     const model = this.responseModel();
-    if (!doc || !model || this.isApproving()) return;
+    if (!doc || !model || this.isApproving() || this.isSavingCard() || this.awaitingClarification()) return;
 
     this.isApproving.set(true);
     this.errorMessage.set(null);
@@ -545,14 +590,15 @@ export class DocumentDetailComponent implements OnInit {
     });
   }
 
-  downloadAsText(filename: string, content: string): void {
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+  readonly downloadAsText = downloadTextFile;
+
+  departmentRequests(doc: Document): DepartmentRequestPlan[] {
+    const { planyZapytanDoWydzialow, planZapytaniaDoWydzialu } = doc.metadata;
+    return planyZapytanDoWydzialow ?? (planZapytaniaDoWydzialu ? [planZapytaniaDoWydzialu] : []);
+  }
+
+  downloadRequest(doc: Document, plan: DepartmentRequestPlan): void {
+    downloadDepartmentRequest(plan, { subject: doc.title, caseNumber: this.getCaseNumber(doc) });
   }
 
   getCaseNumber(doc: Document): string {

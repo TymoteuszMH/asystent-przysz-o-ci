@@ -80,17 +80,23 @@
       </div>
     }
 
-    <!-- Alert potwierdzenia wysłania prośby do wydziału -->
-    @if (departmentRequestPlan(); as plan) {
-      <div class="alert alert-success" style="margin-top: 20px;">
-        <svg class="icon alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-          <polyline points="22 4 12 14.01 9 11.01"/>
-        </svg>
-        <div>
-          Projekt prośby do {{ plan.department }} zostanie zapisany ze sprawą.
-        </div>
-      </div>
+    @if (departmentRequestPlans().length) {
+      <section class="form-section department-requests">
+        <h2 class="form-section-title">Prośby do wydziałów</h2>
+        <p>Możesz je pobrać już teraz. Po rejestracji będą dostępne w karcie sprawy.</p>
+        @for (plan of departmentRequestPlans(); track plan.department) {
+          <div class="department-request">
+            <div>
+              <strong>{{ plan.department }}</strong> · {{ plan.deadline | date: 'dd.MM.yyyy' }}
+              <p>{{ plan.notes }}</p>
+            </div>
+            <button type="button" class="btn btn-secondary" (click)="downloadRequest(plan)"
+              [attr.aria-label]="'Pobierz prośbę do ' + plan.department + ' jako TXT'">
+              Pobierz TXT
+            </button>
+          </div>
+        }
+      </section>
     }
 
     <!-- 2. Formularz treści zapytania -->
@@ -492,57 +498,70 @@
   </div>
 </div>
 
-<!-- Modal wysyłania prośby do wydziału -->
+<!-- Projekt prośby do wydziału -->
 @if (targetDepartmentForRequest(); as targetDept) {
   <div class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-header">
         <h3 class="modal-title">Projekt prośby do wydziału</h3>
-        <button type="button" class="close-btn" (click)="cancelSendModal()">&times;</button>
+        <button type="button" class="close-btn" (click)="closeRequestModal()">&times;</button>
       </div>
 
       <div class="modal-body">
-        <div class="modal-info-row">
-          <span class="info-label">Adresat (Wydział):</span>
-          <span class="info-val"><strong>{{ targetDept.name }}</strong></span>
-        </div>
-        <div class="modal-info-row">
-          <span class="info-label">E-mail kancelarii:</span>
-          <span class="info-val"><code>{{ targetDept.contactEmail }}</code></span>
-        </div>
-
-        <div class="form-group" style="margin-top: 16px;">
-          <label class="form-label">Wewnętrzny termin na przygotowanie stanowiska:</label>
-          <input
-            type="date"
-            class="form-control"
-            [ngModel]="requestInternalDeadline()"
-            (ngModelChange)="requestInternalDeadline.set($event)"
-          />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Treść dyspozycji / notatka dla wydziału:</label>
-          <textarea
-            class="form-control"
-            rows="4"
-            [ngModel]="requestNotes()"
-            (ngModelChange)="requestNotes.set($event)"
-          ></textarea>
-        </div>
-
-        @if (analysisResult()?.similarDocuments?.length) {
-          <div class="modal-alert-tip">
-            💡 Do prośby zostanie automatycznie dołączona informacja o zbieżnych wnioskach z ostatniego roku, aby wydział mógł skorzystać z wcześniej przygotowanego stanowiska.
+        @if (savedRequestInModal(); as request) {
+          <p role="status">Projekt prośby do <strong>{{ request.department }}</strong> jest gotowy do pobrania.</p>
+          <p>Po rejestracji wniosku znajdziesz go również w karcie sprawy.</p>
+        } @else {
+          <div class="modal-info-row">
+            <span class="info-label">Adresat (Wydział):</span>
+            <span class="info-val"><strong>{{ targetDept.name }}</strong></span>
           </div>
+          <div class="modal-info-row">
+            <span class="info-label">E-mail kancelarii:</span>
+            <span class="info-val"><code>{{ targetDept.contactEmail }}</code></span>
+          </div>
+
+          <div class="form-group" style="margin-top: 16px;">
+            <label class="form-label" for="requestInternalDeadline">Wewnętrzny termin na przygotowanie stanowiska</label>
+            <input
+              type="date"
+              class="form-control"
+              id="requestInternalDeadline"
+              [ngModel]="requestInternalDeadline()"
+              (ngModelChange)="requestInternalDeadline.set($event)"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="requestNotes">Treść prośby do wydziału</label>
+            <textarea
+              class="form-control"
+              rows="4"
+              id="requestNotes"
+              [ngModel]="requestNotes()"
+              (ngModelChange)="requestNotes.set($event)"
+            ></textarea>
+          </div>
+
+          @if (analysisResult()?.similarDocuments?.length) {
+            <div class="modal-alert-tip">
+              Plik będzie zawierał sygnatury podobnych spraw z ostatniego roku.
+            </div>
+          }
         }
       </div>
 
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" (click)="cancelSendModal()">Anuluj</button>
-        <button type="button" class="btn btn-primary" (click)="confirmDepartmentRequest()">
-          Zapisz projekt prośby
-        </button>
+        @if (savedRequestInModal(); as request) {
+          <button type="button" class="btn btn-secondary" (click)="closeRequestModal()">Zamknij</button>
+          <button type="button" class="btn btn-primary" (click)="downloadRequest(request)">Pobierz TXT</button>
+        } @else {
+          <button type="button" class="btn btn-secondary" (click)="closeRequestModal()">Anuluj</button>
+          <button type="button" class="btn btn-primary" (click)="confirmDepartmentRequest()"
+            [disabled]="!requestInternalDeadline() || !requestNotes().trim()">
+            Zapisz projekt prośby
+          </button>
+        }
       </div>
     </div>
   </div>

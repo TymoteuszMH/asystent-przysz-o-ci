@@ -220,9 +220,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
       if (this.filterStage !== 'ALL' && item.stage !== this.filterStage) return false;
       if (this.filterDept !== 'ALL' && !item.departments.includes(this.filterDept)) return false;
 
-      if (this.filterDecision === 'ROZPATRZONY' && item.decision !== 'ROZPATRZONY') return false;
-      if (this.filterDecision === 'NIEROZPATRZONY' && item.decision !== 'NIEROZPATRZONY') return false;
-      if (this.filterDecision === 'OCZEKUJE' && item.decision !== 'OCZEKUJE') return false;
+      if (this.filterDecision !== 'ALL' && item.decision !== this.filterDecision) return false;
 
       if (this.filterDeadlineScope === 'OVERDUE' && (isRes || item.diffDays >= 0)) return false;
       if (this.filterDeadlineScope === 'TODAY' && (isRes || item.diffDays !== 0)) return false;
@@ -263,7 +261,8 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   private readonly decisionLabels: Record<string, string> = {
     ROZPATRZONY: 'rozpatrzony',
     NIEROZPATRZONY: 'nierozpatrzony',
-    OCZEKUJE: 'w toku'
+    OCZEKUJE: 'w toku',
+    DO_USCISLENIA: 'oczekuje na uściślenie'
   };
 
   get activeTags(): { key: string; text: string }[] {
@@ -359,6 +358,8 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     } else if (decision === 'NIEROZPATRZONY') {
       decisionLabel = 'WNIOSEK NIE ROZPATRZONY';
       decCls = 'dec-nierozpatrzony';
+    } else if (decision === 'DO_USCISLENIA') {
+      decisionLabel = 'OCZEKUJE NA UŚCIŚLENIE';
     }
 
     const stageLabel = this.STAGE_LABELS[stage] || stage;

@@ -59,7 +59,7 @@
   <div class="app-body">
     <!-- Left Drawer -->
     <aside id="main-drawer" class="drawer" [class.collapsed]="drawerCollapsed">
-      <button type="button" class="compose-btn" (click)="openNewModal()" [disabled]="isNewRequestUnavailable">
+      <button type="button" class="compose-btn" (click)="openRequestCreator()" [disabled]="isNewRequestUnavailable">
         <span>+ Nowy wniosek</span>
       </button>
 
@@ -154,12 +154,4 @@
 
   <!-- Toast -->
   <div class="toast" [class.show]="toastVisible" id="toastBox" role="status">{{ toastMessage }}</div>
-
-  <!-- Nowy wniosek modal -->
-  <app-new-request-modal
-    [isOpen]="isNewModalOpen"
-    [totalCasesCount]="countAll"
-    (close)="closeNewModal()"
-    (created)="onNewCaseCreated($event)"
-  ></app-new-request-modal>
 </div>

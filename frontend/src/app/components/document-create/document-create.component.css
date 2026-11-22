@@ -637,3 +637,23 @@
   height: 20px;
   flex-shrink: 0;
 }
+
+.department-requests {
+  margin-top: 20px;
+}
+
+.department-request {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-light);
+  overflow-wrap: anywhere;
+}
+
+.department-request p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}

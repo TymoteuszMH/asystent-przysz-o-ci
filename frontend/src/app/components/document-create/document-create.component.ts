@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { RequestAnonymizationComponent } from '../request-anonymization/request-anonymization.component';
+import { UdipStateService } from '../../services/udip-state.service';
 import { DocumentService } from '../../services/document.service';
 import {
   CreateDocumentDto,
@@ -10,9 +11,11 @@ import {
   DepartmentRecommendation,
   SimilarDocumentItem,
   RequestAnalysis,
-  DocumentMetadata,
+  DepartmentRequestPlan,
   RequestAnonymizationFields
 } from '../../models/document.model';
+
+import { downloadDepartmentRequest } from '../../utils/department-request';
 
 @Component({
   selector: 'app-document-create',
@@ -57,7 +60,8 @@ export class DocumentCreateComponent {
   analysisResult = signal<SimilarityCheckResult | null>(null);
   analysisError = signal<string | null>(null);
   targetDepartmentForRequest = signal<DepartmentRecommendation | null>(null);
-  departmentRequestPlan = signal<DocumentMetadata['planZapytaniaDoWydzialu']>(undefined);
+  departmentRequestPlans = signal<DepartmentRequestPlan[]>([]);
+  savedRequestInModal = signal<DepartmentRequestPlan | null>(null);
   requestInternalDeadline = signal<string>(this.calculateInternalDeadline());
   requestNotes = signal<string>('');
   previewModalDoc = signal<SimilarDocumentItem | null>(null);
@@ -69,6 +73,7 @@ export class DocumentCreateComponent {
 
   constructor(
     private documentService: DocumentService,
+    private udipState: UdipStateService,
     private router: Router
   ) {}
 
@@ -250,18 +255,6 @@ export class DocumentCreateComponent {
           if (result.suggestedDepartments.length > 0 && result.suggestedDepartments[0].isPrimary) {
             const primaryDept = result.suggestedDepartments[0];
             this.department.set(primaryDept.name);
-
-            // Przygotowanie wstępnej notatki dla wydziału
-            if (result.similarDocuments.length > 0) {
-              const sim = result.similarDocuments[0];
-              this.requestNotes.set(
-                `Proszę o przygotowanie projektu odpowiedzi. Zauważono zbieżność (${sim.similarityPercentage}%) ze sprawą ${sim.caseNumber} z dnia ${sim.date}.`
-              );
-            } else {
-              this.requestNotes.set(
-                `Proszę o przygotowanie projektu odpowiedzi i stanowiska merytorycznego do dnia ${this.requestInternalDeadline()}.`
-              );
-            }
           }
         },
         error: (err: Error) => {
@@ -276,24 +269,43 @@ export class DocumentCreateComponent {
   }
 
   openSendModal(dept: DepartmentRecommendation): void {
+    this.savedRequestInModal.set(null);
+    const saved = this.departmentRequestPlans().find(request => request.department === dept.name);
+    this.requestInternalDeadline.set(saved?.deadline ?? this.calculateInternalDeadline());
+    this.requestNotes.set(saved?.notes ?? 'Proszę o przygotowanie stanowiska merytorycznego do wskazanego terminu.');
     this.targetDepartmentForRequest.set(dept);
   }
 
-  cancelSendModal(): void {
+  closeRequestModal(): void {
     this.targetDepartmentForRequest.set(null);
   }
 
   confirmDepartmentRequest(): void {
     const dept = this.targetDepartmentForRequest();
-    if (!dept) return;
+    const deadline = this.requestInternalDeadline();
+    const notes = this.requestNotes().trim();
+    if (!dept || !deadline || !notes) return;
 
     this.department.set(dept.name);
-    this.departmentRequestPlan.set({
+    const request: DepartmentRequestPlan = {
       department: dept.name,
-      deadline: this.requestInternalDeadline(),
-      notes: this.requestNotes(),
+      contactEmail: dept.contactEmail,
+      deadline,
+      notes,
+      similarCases: this.analysisResult()?.similarDocuments.map(item => item.caseNumber),
+    };
+    this.departmentRequestPlans.update(plans => [
+      ...plans.filter(plan => plan.department !== request.department),
+      request,
+    ]);
+    this.savedRequestInModal.set(request);
+  }
+
+  downloadRequest(request: DepartmentRequestPlan): void {
+    downloadDepartmentRequest(request, {
+      subject: this.title().trim(),
+      caseNumber: this.numerSprawy().trim(),
     });
-    this.targetDepartmentForRequest.set(null);
   }
 
   openDocPreview(doc: SimilarDocumentItem): void {
@@ -359,12 +371,13 @@ export class DocumentCreateComponent {
         status: this.status(),
         zbiezneWnioskiIds: similarDocIds.length > 0 ? similarDocIds : undefined,
         rekomendowaneWydzialy: recommendedDepts.length > 0 ? recommendedDepts : undefined,
-        planZapytaniaDoWydzialu: this.departmentRequestPlan()
+        planyZapytanDoWydzialow: this.departmentRequestPlans()
       }
     };
 
     this.documentService.createDocument(dto).subscribe({
       next: (createdDoc) => {
+        this.udipState.triggerReload();
         this.isSubmitting.set(false);
         this.successMessage.set('Wniosek został pomyślnie zarejestrowany w systemie!');
         setTimeout(() => {
