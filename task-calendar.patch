@@ -1,0 +1,418 @@
+diff --git a/frontend/src/app/task-calendar/task.model.ts b/frontend/src/app/task-calendar/task.model.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/frontend/src/app/task-calendar/task.model.ts
+@@ -0,0 +1,29 @@
++export type TaskPriority = 'HIGH' | 'MEDIUM' | 'LOW';
++export type TaskCategory = 'URZAD' | 'PISMA' | 'SPOTKANIA' | 'INNE';
++export type CalendarViewMode = 'MONTH' | 'WEEK';
++
++export interface Subtask {
++  id: string;
++  text: string;
++  done: boolean;
++}
++
++export interface Task {
++  id: string;
++  title: string;
++  date: string; // YYYY-MM-DD
++  time?: string;
++  priority: TaskPriority;
++  category: TaskCategory;
++  notes?: string;
++  completed: boolean;
++  subtasks: Subtask[];
++}
++
++export interface CalendarDayCell {
++  iso: string;
++  dayNum: number;
++  inCurrentMonth: boolean;
++  isToday: boolean;
++  tasks: Task[];
++}
+diff --git a/frontend/src/app/task-calendar/task.service.ts b/frontend/src/app/task-calendar/task.service.ts
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/frontend/src/app/task-calendar/task.service.ts
+@@ -0,0 +1,131 @@
++import { Injectable, signal, computed } from '@angular/core';
++import { CalendarViewMode, Task, TaskCategory, TaskPriority } from './task.model';
++
++@Injectable({ providedIn: 'root' })
++export class TaskService {
++  private readonly STORAGE_KEY = 'task_calendar_pro_v1';
++
++  private readonly tasksSignal = signal<Task[]>(this.loadTasks());
++  readonly selectedDate = signal<string>(this.getTodayISO());
++  readonly viewMode = signal<CalendarViewMode>('MONTH');
++  readonly searchQuery = signal<string>('');
++  readonly categoryFilter = signal<TaskCategory | 'ALL'>('ALL');
++  readonly priorityFilter = signal<TaskPriority | 'ALL'>('ALL');
++  readonly hideCompleted = signal<boolean>(false);
++
++  readonly allTasks = this.tasksSignal.asReadonly();
++
++  readonly filteredTasks = computed(() => {
++    const q = this.searchQuery().trim().toLowerCase();
++    const cat = this.categoryFilter();
++    const prio = this.priorityFilter();
++    const hideDone = this.hideCompleted();
++
++    return this.tasksSignal().filter(task => {
++      if (hideDone && task.completed) return false;
++      if (cat !== 'ALL' && task.category !== cat) return false;
++      if (prio !== 'ALL' && task.priority !== prio) return false;
++      if (q) {
++        const subText = task.subtasks.map(s => s.text).join(' ');
++        const hay = `${task.title} ${task.notes ?? ''} ${subText}`.toLowerCase();
++        if (!hay.includes(q)) return false;
++      }
++      return true;
++    });
++  });
++
++  readonly tasksForSelectedDate = computed(() =>
++    this.filteredTasks()
++      .filter(t => t.date === this.selectedDate())
++      .sort((a, b) => Number(a.completed) - Number(b.completed))
++  );
++
++  readonly overdueTasksCount = computed(() => {
++    const today = this.getTodayISO();
++    return this.tasksSignal().filter(t => !t.completed && t.date < today).length;
++  });
++
++  addQuickTask(title: string, priority: TaskPriority = 'MEDIUM'): void {
++    const cleanTitle = title.trim();
++    if (!cleanTitle) return;
++    const newTask: Task = {
++      id: 't-' + Date.now(),
++      title: cleanTitle,
++      date: this.selectedDate(),
++      priority,
++      category: 'URZAD',
++      completed: false,
++      subtasks: []
++    };
++    this.tasksSignal.update(tasks => [newTask, ...tasks]);
++    this.saveTasks();
++  }
++
++  toggleTaskCompletion(taskId: string, completed: boolean): void {
++    this.tasksSignal.update(tasks =>
++      tasks.map(t =>
++        t.id === taskId
++          ? { ...t, completed, subtasks: t.subtasks.map(s => ({ ...s, done: completed })) }
++          : t
++      )
++    );
++    this.saveTasks();
++  }
++
++  toggleSubtask(taskId: string, subtaskId: string, done: boolean): void {
++    this.tasksSignal.update(tasks =>
++      tasks.map(t => {
++        if (t.id !== taskId) return t;
++        const subtasks = t.subtasks.map(s => (s.id === subtaskId ? { ...s, done } : s));
++        const completed = subtasks.length > 0 && subtasks.every(s => s.done);
++        return { ...t, subtasks, completed };
++      })
++    );
++    this.saveTasks();
++  }
++
++  deleteTask(taskId: string): void {
++    this.tasksSignal.update(tasks => tasks.filter(t => t.id !== taskId));
++    this.saveTasks();
++  }
++
++  rolloverOverdueTasks(): void {
++    const today = this.getTodayISO();
++    this.tasksSignal.update(tasks =>
++      tasks.map(t => (!t.completed && t.date < today ? { ...t, date: today } : t))
++    );
++    this.selectedDate.set(today);
++    this.saveTasks();
++  }
++
++  exportToJson(): void {
++    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(this.tasksSignal(), null, 2));
++    const a = document.createElement('a');
++    a.href = dataStr;
++    a.download = 'zadania_eksport.json';
++    a.click();
++  }
++
++  getTodayISO(): string {
++    const d = new Date();
++    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
++  }
++
++  private loadTasks(): Task[] {
++    try {
++      const raw = localStorage.getItem(this.STORAGE_KEY);
++      if (raw) return JSON.parse(raw);
++    } catch {
++      // Ignoruj błędy localStorage
++    }
++    return [];
++  }
++
++  private saveTasks(): void {
++    try {
++      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.tasksSignal()));
++    } catch {
++      // Ignoruj błędy localStorage
++    }
++  }
++}
+diff --git a/frontend/src/app/task-calendar/task-sidebar.component.ts b/frontend/src/app/task-calendar/task-sidebar.component.ts
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/frontend/src/app/task-calendar/task-sidebar.component.ts
+@@ -0,0 +1,100 @@
++import { Component, input, output, signal } from '@angular/core';
++import { DatePipe, NgClass } from '@angular/common';
++import { FormsModule } from '@angular/forms';
++import { Task, TaskPriority } from './task.model';
++
++@Component({
++  selector: 'app-task-sidebar',
++  standalone: true,
++  imports: [DatePipe, NgClass, FormsModule],
++  template: `
++    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
++      <div class="p-4 sm:p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200">
++        <h2 class="text-lg font-extrabold text-slate-900">{{ selectedDate() | date:'fullDate' }}</h2>
++      </div>
++
++      <form (ngSubmit)="submitQuickAdd()" class="p-3.5 bg-slate-50 border-b border-slate-200 flex gap-2">
++        <input
++          type="text"
++          [ngModel]="quickTitle()"
++          (ngModelChange)="quickTitle.set($event)"
++          name="quickTitle"
++          placeholder="Szybkie zadanie na ten dzień..."
++          class="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium"
++          required
++        />
++        <select
++          [ngModel]="quickPriority()"
++          (ngModelChange)="quickPriority.set($event)"
++          name="quickPriority"
++          class="px-2 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold"
++        >
++          <option value="HIGH">Pilne</option>
++          <option value="MEDIUM">Normalne</option>
++          <option value="LOW">Niskie</option>
++        </select>
++        <button type="submit" class="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold">
++          Dodaj
++        </button>
++      </form>
++
++      <div class="p-4 flex flex-col gap-3 max-h-[62vh] overflow-y-auto">
++        @if (tasks().length === 0) {
++          <div class="text-center py-10 px-4 border-2 border-dashed border-slate-200 rounded-2xl">
++            <div class="text-slate-400 font-bold text-sm">Brak zadań na ten dzień</div>
++          </div>
++        } @else {
++          @for (task of tasks(); track task.id) {
++            <div
++              class="rounded-xl border p-3.5 shadow-sm transition"
++              [ngClass]="task.completed ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200 bg-white'"
++            >
++              <div class="flex items-start justify-between gap-2.5">
++                <label class="flex items-start gap-2.5 cursor-pointer flex-1">
++                  <input
++                    type="checkbox"
++                    [checked]="task.completed"
++                    (change)="onToggle(task.id, $event)"
++                    class="mt-1"
++                  />
++                  <div>
++                    <div class="text-sm font-bold" [class.line-through]="task.completed">{{ task.title }}</div>
++                    @if (task.notes) {
++                      <p class="text-xs text-slate-500 mt-1">{{ task.notes }}</p>
++                    }
++                  </div>
++                </label>
++                <button type="button" (click)="taskDeleted.emit(task.id)" class="text-slate-400 hover:text-rose-600 text-xs font-bold">
++                  ✕
++                </button>
++              </div>
++            </div>
++          }
++        }
++      </div>
++    </div>
++  `
++})
++export class TaskSidebarComponent {
++  selectedDate = input.required<string>();
++  tasks = input.required<Task[]>();
++
++  taskToggled = output<{ id: string; completed: boolean }>();
++  taskDeleted = output<string>();
++  quickTaskAdded = output<{ title: string; priority: TaskPriority }>();
++
++  quickTitle = signal('');
++  quickPriority = signal<TaskPriority>('MEDIUM');
++
++  onToggle(taskId: string, event: Event): void {
++    const checked = (event.target as HTMLInputElement).checked;
++    this.taskToggled.emit({ id: taskId, completed: checked });
++  }
++
++  submitQuickAdd(): void {
++    const title = this.quickTitle().trim();
++    if (!title) return;
++    this.quickTaskAdded.emit({ title, priority: this.quickPriority() });
++    this.quickTitle.set('');
++  }
++}
+diff --git a/frontend/src/app/task-calendar/task-calendar.component.ts b/frontend/src/app/task-calendar/task-calendar.component.ts
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/frontend/src/app/task-calendar/task-calendar.component.ts
+@@ -0,0 +1,134 @@
++import { Component, computed, inject, signal } from '@angular/core';
++import { CommonModule } from '@angular/common';
++import { TaskService } from './task.service';
++import { TaskSidebarComponent } from './task-sidebar.component';
++import { CalendarDayCell } from './task.model';
++
++@Component({
++  selector: 'app-task-calendar',
++  standalone: true,
++  imports: [CommonModule, TaskSidebarComponent],
++  template: `
++    <div class="min-h-screen flex flex-col bg-slate-50">
++      <header class="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
++        <div>
++          <h1 class="text-lg font-extrabold text-slate-900">Kalendarz Zadań i Realizacji</h1>
++          <p class="text-xs text-slate-500">Moduł Angular 19 (Standalone + Signals)</p>
++        </div>
++
++        <div class="flex items-center gap-2">
++          <button (click)="prevMonth()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold">‹</button>
++          <button (click)="goToday()" class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold">Dzisiaj</button>
++          <button (click)="nextMonth()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold">›</button>
++          <span class="px-3 font-extrabold text-slate-800 capitalize">{{ monthLabel() }}</span>
++        </div>
++
++        <div class="flex items-center gap-2">
++          @if (taskService.overdueTasksCount() > 0) {
++            <button (click)="taskService.rolloverOverdueTasks()" class="px-3 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold">
++              ↻ Przenieś zaległe ({{ taskService.overdueTasksCount() }})
++            </button>
++          }
++          <button (click)="taskService.exportToJson()" class="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
++            ⬇ Eksport JSON
++          </button>
++        </div>
++      </header>
++
++      <main class="flex-1 max-w-[1480px] w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
++        <section class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
++          <div class="grid grid-cols-7 bg-slate-50 border-b border-slate-200 text-center py-2.5 text-xs font-bold uppercase text-slate-500">
++            <div>Pon</div><div>Wt</div><div>Śr</div><div>Czw</div><div>Pt</div><div class="text-rose-600">Sob</div><div class="text-rose-600">Ndz</div>
++          </div>
++          <div class="grid grid-cols-7 bg-slate-200 gap-[1px]">
++            @for (cell of calendarCells(); track cell.iso) {
++              <div
++                (click)="taskService.selectedDate.set(cell.iso)"
++                class="min-h-[110px] p-2 flex flex-col gap-1 cursor-pointer transition"
++                [ngClass]="{
++                  'bg-blue-50 ring-2 ring-inset ring-blue-600': cell.iso === taskService.selectedDate(),
++                  'bg-white': cell.inCurrentMonth && cell.iso !== taskService.selectedDate(),
++                  'bg-slate-50 text-slate-400': !cell.inCurrentMonth && cell.iso !== taskService.selectedDate()
++                }"
++              >
++                <span class="w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center" [ngClass]="cell.isToday ? 'bg-blue-600 text-white' : ''">
++                  {{ cell.dayNum }}
++                </span>
++                @for (t of cell.tasks.slice(0, 3); track t.id) {
++                  <div class="px-1.5 py-0.5 rounded bg-slate-100 text-[11px] truncate" [class.line-through]="t.completed">
++                    {{ t.title }}
++                  </div>
++                }
++              </div>
++            }
++          </div>
++        </section>
++
++        <aside class="lg:col-span-4 sticky top-6">
++          <app-task-sidebar
++            [selectedDate]="taskService.selectedDate()"
++            [tasks]="taskService.tasksForSelectedDate()"
++            (taskToggled)="taskService.toggleTaskCompletion($event.id, $event.completed)"
++            (taskDeleted)="taskService.deleteTask($event)"
++            (quickTaskAdded)="taskService.addQuickTask($event.title, $event.priority)"
++          />
++        </aside>
++      </main>
++    </div>
++  `
++})
++export class TaskCalendarComponent {
++  readonly taskService = inject(TaskService);
++  private readonly cursorDate = signal(new Date());
++
++  readonly monthLabel = computed(() =>
++    this.cursorDate().toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })
++  );
++
++  readonly calendarCells = computed<CalendarDayCell[]>(() => {
++    const cursor = this.cursorDate();
++    const year = cursor.getFullYear();
++    const month = cursor.getMonth();
++    const firstOfMonth = new Date(year, month, 1);
++    const lastOfMonth = new Date(year, month + 1, 0);
++    let startOffset = firstOfMonth.getDay() - 1;
++    if (startOffset < 0) startOffset = 6;
++
++    const gridStart = new Date(year, month, 1 - startOffset);
++    const totalCells = Math.ceil((startOffset + lastOfMonth.getDate()) / 7) * 7;
++    const todayIso = this.taskService.getTodayISO();
++    const allFiltered = this.taskService.filteredTasks();
++
++    const cells: CalendarDayCell[] = [];
++    for (let i = 0; i < totalCells; i++) {
++      const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
++      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
++      cells.push({
++        iso,
++        dayNum: d.getDate(),
++        inCurrentMonth: d.getMonth() === month,
++        isToday: iso === todayIso,
++        tasks: allFiltered.filter(t => t.date === iso)
++      });
++    }
++    return cells;
++  });
++
++  prevMonth(): void {
++    const d = new Date(this.cursorDate());
++    d.setMonth(d.getMonth() - 1);
++    this.cursorDate.set(d);
++  }
++
++  nextMonth(): void {
++    const d = new Date(this.cursorDate());
++    d.setMonth(d.getMonth() + 1);
++    this.cursorDate.set(d);
++  }
++
++  goToday(): void {
++    const now = new Date();
++    this.cursorDate.set(now);
++    this.taskService.selectedDate.set(this.taskService.getTodayISO());
++  }
++}
