@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { DocumentService } from '../../services/document.service';
 import { UdipStateService } from '../../services/udip-state.service';
@@ -32,7 +32,7 @@ export interface CaseViewItem {
 @Component({
   selector: 'app-document-list',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './document-list.component.html',
   styleUrls: ['./document-list.component.css']
 })
@@ -41,7 +41,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   isLoading = true;
   errorMessage: string | null = null;
 
-  filtersOn = true;
+  filtersExpanded = false;
 
   filterStage = 'ALL';
   filterDeadlineScope = 'ALL';
@@ -118,7 +118,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   refreshData(): void {
     this.loadDocuments();
     this.udipState.triggerReload();
-    this.udipState.showToast('Odświeżono dane z backendu NestJS.');
+    this.udipState.showToast('Odświeżono listę wniosków.');
   }
 
   resetData(): void {
@@ -129,7 +129,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
         this.isLoading = false;
         this.updateCounts();
         this.udipState.triggerReload();
-        this.udipState.showToast('Przywrócono 16 wniosków z API backendu.');
+        this.udipState.showToast('Przywrócono przykładowe wnioski.');
       },
       error: (err: Error) => {
         this.isLoading = false;
@@ -139,7 +139,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   }
 
   toggleFilters(): void {
-    this.filtersOn = !this.filtersOn;
+    this.filtersExpanded = !this.filtersExpanded;
   }
 
   setFilter(field: 'stage' | 'deadlineScope' | 'decision' | 'dept' | 'year' | 'sort', val: string): void {
@@ -216,20 +216,17 @@ export class DocumentListComponent implements OnInit, OnDestroy {
       // Kliknięty dzień w kalendarzu
       if (this.calDate && item.dateDeadline !== this.calDate) return false;
 
-      // Filtry z panelu
-      if (this.filtersOn) {
-        if (this.filterStage !== 'ALL' && item.stage !== this.filterStage) return false;
-        if (this.filterDept !== 'ALL' && !item.departments.includes(this.filterDept)) return false;
+      if (this.filterStage !== 'ALL' && item.stage !== this.filterStage) return false;
+      if (this.filterDept !== 'ALL' && !item.departments.includes(this.filterDept)) return false;
 
-        if (this.filterDecision === 'ROZPATRZONY' && item.decision !== 'ROZPATRZONY') return false;
-        if (this.filterDecision === 'NIEROZPATRZONY' && item.decision !== 'NIEROZPATRZONY') return false;
-        if (this.filterDecision === 'OCZEKUJE' && item.decision !== 'OCZEKUJE') return false;
+      if (this.filterDecision === 'ROZPATRZONY' && item.decision !== 'ROZPATRZONY') return false;
+      if (this.filterDecision === 'NIEROZPATRZONY' && item.decision !== 'NIEROZPATRZONY') return false;
+      if (this.filterDecision === 'OCZEKUJE' && item.decision !== 'OCZEKUJE') return false;
 
-        if (this.filterDeadlineScope === 'OVERDUE' && (isRes || item.diffDays >= 0)) return false;
-        if (this.filterDeadlineScope === 'TODAY' && (isRes || item.diffDays !== 0)) return false;
-        if (this.filterDeadlineScope === 'TOMORROW' && (isRes || item.diffDays !== 1)) return false;
-        if (this.filterDeadlineScope === 'NEXT_7' && (isRes || item.diffDays < 0 || item.diffDays > 7)) return false;
-      }
+      if (this.filterDeadlineScope === 'OVERDUE' && (isRes || item.diffDays >= 0)) return false;
+      if (this.filterDeadlineScope === 'TODAY' && (isRes || item.diffDays !== 0)) return false;
+      if (this.filterDeadlineScope === 'TOMORROW' && (isRes || item.diffDays !== 1)) return false;
+      if (this.filterDeadlineScope === 'NEXT_7' && (isRes || item.diffDays < 0 || item.diffDays > 7)) return false;
 
       // Szukajka
       if (q) {
@@ -255,11 +252,24 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     return filtered;
   }
 
+  private readonly deadlineLabels: Record<string, string> = {
+    OVERDUE: 'po terminie',
+    TODAY: 'dzisiaj',
+    TOMORROW: 'jutro',
+    NEXT_7: 'w ciągu 7 dni'
+  };
+
+  private readonly decisionLabels: Record<string, string> = {
+    ROZPATRZONY: 'rozpatrzony',
+    NIEROZPATRZONY: 'nierozpatrzony',
+    OCZEKUJE: 'w toku'
+  };
+
   get activeTags(): { key: string; text: string }[] {
     const tags: { key: string; text: string }[] = [];
     if (this.filterStage !== 'ALL') tags.push({ key: 'stage', text: `Etap: ${this.STAGE_LABELS[this.filterStage] || this.filterStage}` });
-    if (this.filterDeadlineScope !== 'ALL') tags.push({ key: 'deadlineScope', text: `Termin: ${this.filterDeadlineScope}` });
-    if (this.filterDecision !== 'ALL') tags.push({ key: 'decision', text: `Decyzja: ${this.filterDecision}` });
+    if (this.filterDeadlineScope !== 'ALL') tags.push({ key: 'deadlineScope', text: `Termin: ${this.deadlineLabels[this.filterDeadlineScope]}` });
+    if (this.filterDecision !== 'ALL') tags.push({ key: 'decision', text: `Decyzja: ${this.decisionLabels[this.filterDecision]}` });
     if (this.filterDept !== 'ALL') tags.push({ key: 'dept', text: `Wydział: ${this.filterDept}` });
     if (this.filterYear !== 'ALL') tags.push({ key: 'year', text: `Rok: ${this.filterYear}` });
     if (this.calDate) tags.push({ key: 'calDate', text: `Data: ${this.formatDatePL(this.calDate)}` });
@@ -267,9 +277,12 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     return tags;
   }
 
+  private readonly countRules = new Intl.PluralRules('pl');
+
   get foundCounterText(): string {
     const len = this.filteredCases.length;
-    const word = len === 1 ? 'wniosek' : (len >= 2 && len <= 4 ? 'wnioski' : 'wniosków');
+    const category = this.countRules.select(len);
+    const word = category === 'one' ? 'wniosek' : category === 'few' ? 'wnioski' : 'wniosków';
     return `Znaleziono ${len} ${word}`;
   }
 

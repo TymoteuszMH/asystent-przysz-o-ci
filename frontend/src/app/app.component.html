@@ -1,13 +1,14 @@
 <div class="app-shell">
+  <a href="#main-content" class="skip-link">Przejdź do treści</a>
   <!-- ===================== TOP BAR ===================== -->
   <header class="topbar">
     <div class="topbar-left">
-      <button class="icon-btn" (click)="toggleDrawer()" title="Menu" aria-label="Menu">
+      <button class="icon-btn" (click)="toggleDrawer()" title="Menu" aria-label="Menu boczne" aria-controls="main-drawer" [attr.aria-expanded]="!drawerCollapsed">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
         </svg>
       </button>
-      <div class="brand" (click)="goHome()">
+      <button type="button" class="brand" (click)="goHome()">
         <div class="brand-emblem">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -15,10 +16,10 @@
           </svg>
         </div>
         <div>
-          <div class="brand-title">UDIP Bydgoszcz – Asystent Urzędnika</div>
-          <div class="brand-sub">Urząd Miasta Bydgoszczy • Rejestr wniosków</div>
+          <div class="brand-title">Asystent urzędnika</div>
+          <div class="brand-sub">Urząd Miasta Bydgoszczy</div>
         </div>
-      </div>
+      </button>
     </div>
 
     <div class="topbar-center">
@@ -27,7 +28,7 @@
           <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
         </svg>
         <input
-          type="text"
+          type="text" aria-label="Szukaj wniosków"
           [value]="globalSearch"
           (input)="onGlobalSearch($event)"
           placeholder="Szukaj po sygnaturze, temacie lub wydziale..."
@@ -36,10 +37,10 @@
           class="search-clear"
           [class.visible]="globalSearch.length > 0"
           (click)="clearGlobalSearch()"
-          title="Wyczyść"
+          title="Wyczyść wyszukiwanie" aria-label="Wyczyść wyszukiwanie"
         >✕</button>
       </div>
-      <select class="year-select" [value]="selectedYear" (change)="onYearChange($event)">
+      <select aria-label="Rok wpływu" class="year-select" [value]="selectedYear" (change)="onYearChange($event)">
         <option value="ALL">Wszystkie lata</option>
         <option value="2026">2026</option>
         <option value="2025">2025</option>
@@ -47,7 +48,7 @@
     </div>
 
     <div class="topbar-right">
-      <div class="offline-pill">
+      <div class="offline-pill" [class.connection-error]="backendStatus === 'Brak połączenia'" [class.connection-pending]="backendStatus === 'Łączenie…'" role="status">
         <span class="offline-dot"></span>
         <span>{{ backendStatus }}</span>
       </div>
@@ -57,15 +58,16 @@
   <!-- ===================== BODY ===================== -->
   <div class="app-body">
     <!-- Left Drawer -->
-    <aside class="drawer" [class.collapsed]="drawerCollapsed">
+    <aside id="main-drawer" class="drawer" [class.collapsed]="drawerCollapsed">
       <button type="button" class="compose-btn" (click)="openNewModal()">
         <span>+ Nowy wniosek</span>
       </button>
 
-      <nav class="nav-list" aria-label="Widoki listy">
+      <nav class="nav-list" aria-label="Nawigacja główna">
         <button
           class="nav-tile"
           [class.active]="activeView === 'ALL' && !isCalendarView"
+          [attr.aria-current]="activeView === 'ALL' && !isCalendarView ? 'page' : null"
           (click)="setView('ALL')"
         >
           <span class="nav-tile-left"><span>Wszystkie wnioski</span></span>
@@ -74,14 +76,16 @@
         <button
           class="nav-tile"
           [class.active]="activeView === 'URGENT' && !isCalendarView"
+          [attr.aria-current]="activeView === 'URGENT' && !isCalendarView ? 'page' : null"
           (click)="setView('URGENT')"
         >
-          <span class="nav-tile-left"><span>Pilne (dziś / jutro / po terminie)</span></span>
+          <span class="nav-tile-left"><span>Pilne wnioski</span></span>
           <span class="nav-count urgent-badge">{{ countUrgent }}</span>
         </button>
         <button
           class="nav-tile"
           [class.active]="activeView === 'RESOLVED' && !isCalendarView"
+          [attr.aria-current]="activeView === 'RESOLVED' && !isCalendarView ? 'page' : null"
           (click)="setView('RESOLVED')"
         >
           <span class="nav-tile-left"><span>Rozpatrzone</span></span>
@@ -90,6 +94,7 @@
         <button
           class="nav-tile"
           [class.active]="isCalendarView"
+          [attr.aria-current]="isCalendarView ? 'page' : null"
           (click)="openCalendar()"
         >
           <span class="nav-tile-left">
@@ -114,13 +119,15 @@
           <span class="cal-selected-label">{{ calSelectedLabel }}</span>
         </div>
         <div class="cal-nav">
-          <button type="button" class="cal-arrow" (click)="calPrev()">‹</button>
+          <button type="button" class="cal-arrow" aria-label="Poprzedni miesiąc" (click)="calPrev()">‹</button>
           <span class="cal-month-label">{{ calMonthLabel }}</span>
-          <button type="button" class="cal-arrow" (click)="calNext()">›</button>
+          <button type="button" class="cal-arrow" aria-label="Następny miesiąc" (click)="calNext()">›</button>
         </div>
         <div class="cal-grid">
           <div class="cal-dow" *ngFor="let d of calDows">{{ d }}</div>
-          <div *ngFor="let cell of calCells" class="cal-day"
+          <button type="button" *ngFor="let cell of calCells" class="cal-day"
+            [disabled]="!cell.day"
+            [attr.aria-pressed]="cell.iso === calSelectedDate"
             [class.empty]="!cell.day"
             [class.today-outline]="cell.isToday"
             [class.due-red]="cell.dueCls === 'due-red'"
@@ -129,7 +136,7 @@
             [class.selected-day]="cell.iso === calSelectedDate"
             (click)="cell.day && onCalDayClick(cell.iso)"
             [title]="cell.day ? 'Kliknij, aby filtrować wnioski według dnia.' : ''"
-          >{{ cell.day || '' }}</div>
+          >{{ cell.day || '' }}</button>
         </div>
         <div class="cal-legend">
           <span class="legend-item"><span class="legend-dot" style="background:#d93025;"></span>Dziś / po terminie</span>
@@ -140,13 +147,13 @@
     </aside>
 
     <!-- Main workspace -->
-    <main class="workspace">
+    <main id="main-content" class="workspace" tabindex="-1">
       <router-outlet></router-outlet>
     </main>
   </div>
 
   <!-- Toast -->
-  <div class="toast" [class.show]="toastVisible" id="toastBox">{{ toastMessage }}</div>
+  <div class="toast" [class.show]="toastVisible" id="toastBox" role="status">{{ toastMessage }}</div>
 
   <!-- Nowy wniosek modal -->
   <app-new-request-modal

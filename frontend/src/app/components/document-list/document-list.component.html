@@ -1,154 +1,126 @@
 <div class="list-wrapper">
-  <!-- FILTRY WYSZUKIWANIA -->
-  <section class="filters-card">
-    <div class="filters-header" (click)="toggleFilters()" role="button" tabindex="0" [attr.aria-expanded]="filtersOn">
-      <div class="filters-title-wrap">
-        <span class="filters-title">FILTRY WYSZUKIWANIA</span>
-        <span class="filter-toggle-badge">
-          <span>{{ filtersOn ? 'Zwiń' : 'Rozwiń' }}</span>
-          <span class="filter-v-indicator" [class.expanded]="filtersOn" aria-hidden="true">▾</span>
-        </span>
-      </div>
-      <div style="display: flex; gap: 8px;">
-        <button type="button" class="small-action-btn" (click)="$event.stopPropagation(); resetData()" title="Przywraca wzorcowe 16 spraw UDIP w API backendu">
-          Resetuj dane (16)
-        </button>
-        <button type="button" class="small-action-btn" (click)="$event.stopPropagation(); refreshData()" title="Odświeża listę spraw z API backendu">
-          Odśwież
-        </button>
-      </div>
+  <header class="list-heading">
+    <div>
+      <p class="page-context">Dostęp do informacji publicznej</p>
+      <h1>{{ activeView === 'URGENT' ? 'Pilne wnioski' : activeView === 'RESOLVED' ? 'Rozpatrzone wnioski' : 'Rejestr wniosków' }}</h1>
     </div>
+    <button type="button" class="btn btn-secondary" (click)="refreshData()">Odśwież listę</button>
+  </header>
 
-    <div class="filters-body" [class.collapsed]="filtersOn">
-      <div class="yt-six-grid">
-        <!-- 1. ETAP SPRAWY -->
-        <div class="yt-filter-col">
-          <div class="yt-col-heading">ETAP SPRAWY</div>
-          <ul class="yt-option-list">
-            <li><button type="button" class="yt-option-btn" [class.active]="filterStage === 'ALL'" (click)="setFilter('stage', 'ALL')">Wszystkie etapy</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterStage === 'BRAK_DZIALAN'" (click)="setFilter('stage', 'BRAK_DZIALAN')">Brak działań</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterStage === 'ZAPYTANIA_WYDZIALY'" (click)="setFilter('stage', 'ZAPYTANIA_WYDZIALY')">Zapytania w wydziałach</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterStage === 'KWERENDA'" (click)="setFilter('stage', 'KWERENDA')">Kwerenda</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterStage === 'W_PRZYGOTOWANIU'" (click)="setFilter('stage', 'W_PRZYGOTOWANIU')">W przygotowaniu</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterStage === 'ODPOWIEDZ_WYSLANA'" (click)="setFilter('stage', 'ODPOWIEDZ_WYSLANA')">Odpowiedź wysłana</button></li>
-          </ul>
-        </div>
-
-        <!-- 2. TERMIN REALIZACJI -->
-        <div class="yt-filter-col">
-          <div class="yt-col-heading">TERMIN REALIZACJI</div>
-          <ul class="yt-option-list">
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDeadlineScope === 'ALL'" (click)="setFilter('deadlineScope', 'ALL')">Wszystkie</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDeadlineScope === 'OVERDUE'" (click)="setFilter('deadlineScope', 'OVERDUE')">Po terminie</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDeadlineScope === 'TODAY'" (click)="setFilter('deadlineScope', 'TODAY')">Dzisiaj</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDeadlineScope === 'TOMORROW'" (click)="setFilter('deadlineScope', 'TOMORROW')">Jutro</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDeadlineScope === 'NEXT_7'" (click)="setFilter('deadlineScope', 'NEXT_7')">Ten tydzień (do 7 dni)</button></li>
-          </ul>
-        </div>
-
-        <!-- 3. DECYZJA -->
-        <div class="yt-filter-col">
-          <div class="yt-col-heading">DECYZJA / STATUS</div>
-          <ul class="yt-option-list">
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDecision === 'ALL'" (click)="setFilter('decision', 'ALL')">Wszystkie</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDecision === 'ROZPATRZONY'" (click)="setFilter('decision', 'ROZPATRZONY')">Wniosek rozpatrzony</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDecision === 'NIEROZPATRZONY'" (click)="setFilter('decision', 'NIEROZPATRZONY')">Wniosek nie rozpatrzony</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDecision === 'OCZEKUJE'" (click)="setFilter('decision', 'OCZEKUJE')">W toku / bez decyzji</button></li>
-          </ul>
-        </div>
-
-        <!-- 4. WYDZIAŁ / BIURO -->
-        <div class="yt-filter-col">
-          <div class="yt-col-heading">WYDZIAŁ / BIURO</div>
-          <ul class="yt-option-list">
-            <li><button type="button" class="yt-option-btn" [class.active]="filterDept === 'ALL'" (click)="setFilter('dept', 'ALL')">Wszystkie wydziały</button></li>
-            <li *ngFor="let dept of departmentsList">
-              <button type="button" class="yt-option-btn" [class.active]="filterDept === dept.code" (click)="setFilter('dept', dept.code)">
-                {{ dept.code }}
-              </button>
-            </li>
-          </ul>
-        </div>
-
-        <!-- 5. ROK WPŁYWU -->
-        <div class="yt-filter-col">
-          <div class="yt-col-heading">DATA WPŁYWU</div>
-          <ul class="yt-option-list">
-            <li><button type="button" class="yt-option-btn" [class.active]="filterYear === 'ALL'" (click)="setFilter('year', 'ALL')">Wszystkie lata</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterYear === '2026'" (click)="setFilter('year', '2026')">Rok 2026</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterYear === '2025'" (click)="setFilter('year', '2025')">Rok 2025</button></li>
-          </ul>
-        </div>
-
-        <!-- 6. PRIORYTET / SORTOWANIE -->
-        <div class="yt-filter-col">
-          <div class="yt-col-heading">PRIORYTET</div>
-          <ul class="yt-option-list">
-            <li><button type="button" class="yt-option-btn" [class.active]="filterSort === 'DEADLINE'" (click)="setFilter('sort', 'DEADLINE')">Najbliższy termin</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterSort === 'NEWEST'" (click)="setFilter('sort', 'NEWEST')">Od najnowszych</button></li>
-            <li><button type="button" class="yt-option-btn" [class.active]="filterSort === 'OLDEST'" (click)="setFilter('sort', 'OLDEST')">Od najstarszych</button></li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- OLX BOTTOM BAR -->
-      <div class="olx-bottom-bar">
-        <div class="olx-active-tags-row">
-          <span *ngFor="let t of activeTags" class="olx-active-tag">
-            <span>{{ t.text }}</span>
-            <button type="button" (click)="removeTag(t.key)">×</button>
-          </span>
-        </div>
-        <div class="olx-right-actions">
-          <span class="olx-found-counter">{{ foundCounterText }}</span>
-          <button type="button" class="clear-filters-btn" (click)="clearAllFilters()">Wyczyść filtry</button>
-        </div>
-      </div>
+  <section class="filters-card" aria-label="Filtrowanie wniosków">
+    <div class="filters-header">
+      <button type="button" class="btn btn-secondary" (click)="toggleFilters()" [attr.aria-expanded]="filtersExpanded" aria-controls="request-filters">
+        Filtry i sortowanie <span aria-hidden="true">{{ filtersExpanded ? '▴' : '▾' }}</span>
+      </button>
+      <button *ngIf="activeTags.length || filterSort !== 'DEADLINE'" type="button" class="clear-filters-btn" (click)="clearAllFilters()">Wyczyść filtry</button>
+    </div>
+    <div id="request-filters" class="filters-body" [hidden]="!filtersExpanded">
+      <label class="filter-field">
+        <span>Etap sprawy</span>
+        <select #selectstage class="form-control" [ngModel]="filterStage" (change)="setFilter('stage', selectstage.value)">
+          <option value="ALL">Wszystkie etapy</option>
+          <option value="BRAK_DZIALAN">Brak działań</option>
+          <option value="ZAPYTANIA_WYDZIALY">Zapytania w wydziałach</option>
+          <option value="KWERENDA">Kwerenda</option>
+          <option value="W_PRZYGOTOWANIU">W przygotowaniu</option>
+          <option value="ODPOWIEDZ_WYSLANA">Odpowiedź wysłana</option>
+        </select>
+      </label>
+      <label class="filter-field">
+        <span>Termin realizacji</span>
+        <select #selectdeadlineScope class="form-control" [ngModel]="filterDeadlineScope" (change)="setFilter('deadlineScope', selectdeadlineScope.value)">
+          <option value="ALL">Wszystkie</option>
+          <option value="OVERDUE">Po terminie</option>
+          <option value="TODAY">Dzisiaj</option>
+          <option value="TOMORROW">Jutro</option>
+          <option value="NEXT_7">W ciągu 7 dni</option>
+        </select>
+      </label>
+      <label class="filter-field">
+        <span>Rozstrzygnięcie</span>
+        <select #selectdecision class="form-control" [ngModel]="filterDecision" (change)="setFilter('decision', selectdecision.value)">
+          <option value="ALL">Wszystkie</option>
+          <option value="ROZPATRZONY">Wniosek rozpatrzony</option>
+          <option value="NIEROZPATRZONY">Wniosek nierozpatrzony</option>
+          <option value="OCZEKUJE">W toku / bez decyzji</option>
+        </select>
+      </label>
+      <label class="filter-field">
+        <span>Wydział lub biuro</span>
+        <select #selectdept class="form-control" [ngModel]="filterDept" (change)="setFilter('dept', selectdept.value)">
+          <option value="ALL">Wszystkie wydziały</option>
+          <option *ngFor="let dept of departmentsList" [value]="dept.code">{{ dept.code }} — {{ dept.name }}</option>
+        </select>
+      </label>
+      <label class="filter-field">
+        <span>Rok wpływu</span>
+        <select #selectyear class="form-control" [ngModel]="filterYear" (change)="setFilter('year', selectyear.value)">
+          <option value="ALL">Wszystkie lata</option>
+          <option value="2026">Rok 2026</option>
+          <option value="2025">Rok 2025</option>
+        </select>
+      </label>
+      <label class="filter-field">
+        <span>Sortowanie</span>
+        <select #selectsort class="form-control" [ngModel]="filterSort" (change)="setFilter('sort', selectsort.value)">
+          <option value="DEADLINE">Najbliższy termin</option>
+          <option value="NEWEST">Od najnowszych</option>
+          <option value="OLDEST">Od najstarszych</option>
+        </select>
+      </label>
+    </div>
+    <div *ngIf="activeTags.length" class="active-filters">
+      <span *ngFor="let tag of activeTags" class="active-filter">
+        <span>{{ tag.text }}</span>
+        <button type="button" (click)="removeTag(tag.key)" [attr.aria-label]="'Usuń filtr ' + tag.text">×</button>
+      </span>
     </div>
   </section>
 
+  <div class="results-heading">
+    <h2>Lista wniosków</h2>
+    <span *ngIf="!isLoading && !errorMessage">{{ foundCounterText }}</span>
+  </div>
   <!-- STAN BŁĘDU -->
-  <div *ngIf="errorMessage" class="udip-error">
-    <strong>Błąd komunikacji z API backendu:</strong> {{ errorMessage }}
+  <div *ngIf="errorMessage" class="udip-error" role="alert">
+    <strong>Nie udało się pobrać wniosków.</strong> {{ errorMessage }}
     <button type="button" class="small-action-btn" style="margin-left:12px;" (click)="refreshData()">Ponów próbę</button>
   </div>
 
   <!-- STAN ŁADOWANIA -->
-  <div *ngIf="isLoading" class="udip-loading">
+  <div *ngIf="isLoading" class="udip-loading" role="status">
     <div class="udip-spinner"></div>
-    <span>Pobieranie wniosków z NestJS API (http://localhost:3000)...</span>
+    <span>Pobieranie wniosków…</span>
   </div>
 
   <!-- TABELA WNIOSKÓW -->
-  <div *ngIf="!isLoading" class="table-scroll">
-    <table class="cases-table">
+  <div *ngIf="!isLoading && (!errorMessage || documents.length)" class="table-scroll" tabindex="0" role="region" aria-label="Tabela wniosków">
+    <table class="cases-table" aria-label="Lista wniosków">
       <thead>
         <tr>
-          <th style="text-align:center;">Lp.</th>
           <th>Sygnatura</th>
           <th>Temat wniosku</th>
           <th>Etap sprawy</th>
           <th>Rozstrzygnięcie</th>
           <th>Termin</th>
           <th>Pozostało</th>
-          <th>Data</th>
+          <th>Data wpływu</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngIf="filteredCases.length === 0">
-          <td colspan="8" style="text-align:center;padding:28px;color:var(--text-muted);">
+          <td colspan="7" style="text-align:center;padding:28px;color:var(--text-muted);">
             Brak wniosków spełniających wybrane kryteria wyszukiwania.
           </td>
         </tr>
         <tr
-          *ngFor="let item of filteredCases; let i = index"
+          *ngFor="let item of filteredCases"
           [class.row-red]="item.rowCls === 'row-red'"
           [class.row-orange]="item.rowCls === 'row-orange'"
           [class.row-resolved]="item.rowCls === 'row-resolved'"
           (click)="openDetail(item.doc.id)"
         >
-          <td class="cell-lp">{{ i + 1 }}</td>
-          <td class="cell-sygn">{{ item.sygnatura }}</td>
+          <td class="cell-sygn"><a [routerLink]="['/documents', item.doc.id]" (click)="$event.stopPropagation()">{{ item.sygnatura }}</a></td>
           <td>
             <span class="subject-title">{{ item.subject }}</span>
             <div *ngIf="item.applicant" style="font-size:11px;color:var(--text-muted);margin-top:2px;">
@@ -165,4 +137,8 @@
       </tbody>
     </table>
   </div>
+  <details class="demo-actions">
+    <summary>Dane demonstracyjne</summary>
+    <button type="button" class="btn btn-secondary" (click)="resetData()" [disabled]="isLoading">Przywróć 16 przykładowych wniosków</button>
+  </details>
 </div>

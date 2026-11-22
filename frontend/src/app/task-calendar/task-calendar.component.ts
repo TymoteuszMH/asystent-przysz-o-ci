@@ -23,15 +23,14 @@ import { CalendarDayCell } from './task.model';
             <span>← Powrót do wniosków</span>
           </button>
           <div>
-            <h1 class="text-lg font-extrabold text-slate-900">Kalendarz Zadań i Realizacji</h1>
-            <p class="text-xs text-slate-500">Moduł zadań i terminów Urzędu Miasta Bydgoszczy</p>
+            <h1 class="text-lg font-extrabold text-slate-900">Kalendarz zadań</h1>
           </div>
         </div>
 
         <div class="flex items-center gap-2">
-          <button (click)="prevMonth()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold">‹</button>
+          <button type="button" aria-label="Poprzedni miesiąc" (click)="prevMonth()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold">‹</button>
           <button (click)="goToday()" class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold">Dzisiaj</button>
-          <button (click)="nextMonth()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold">›</button>
+          <button type="button" aria-label="Następny miesiąc" (click)="nextMonth()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold">›</button>
           <span class="px-3 font-extrabold text-slate-800 capitalize">{{ monthLabel() }}</span>
         </div>
 
@@ -47,16 +46,18 @@ import { CalendarDayCell } from './task.model';
         </div>
       </header>
 
-      <main class="flex-1 max-w-[1480px] w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <div class="flex-1 max-w-[1480px] w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         <section class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="grid grid-cols-7 bg-slate-50 border-b border-slate-200 text-center py-2.5 text-xs font-bold uppercase text-slate-500">
             <div>Pon</div><div>Wt</div><div>Śr</div><div>Czw</div><div>Pt</div><div class="text-rose-600">Sob</div><div class="text-rose-600">Ndz</div>
           </div>
           <div class="grid grid-cols-7 bg-slate-200 gap-[1px]">
             @for (cell of calendarCells(); track cell.iso) {
-              <div
+              <button type="button"
                 (click)="taskService.selectedDate.set(cell.iso)"
-                class="min-h-[110px] p-2 flex flex-col gap-1 cursor-pointer transition"
+                [attr.aria-pressed]="cell.iso === taskService.selectedDate()"
+                [attr.aria-label]="cell.iso + ' · Zadania: ' + cell.tasks.length"
+                class="task-day min-h-[110px] p-2 flex flex-col gap-1 cursor-pointer transition"
                 [ngClass]="{
                   'bg-blue-50 ring-2 ring-inset ring-blue-600': cell.iso === taskService.selectedDate(),
                   'bg-white': cell.inCurrentMonth && cell.iso !== taskService.selectedDate(),
@@ -67,11 +68,11 @@ import { CalendarDayCell } from './task.model';
                   {{ cell.dayNum }}
                 </span>
                 @for (t of cell.tasks.slice(0, 3); track t.id) {
-                  <div class="px-1.5 py-0.5 rounded bg-slate-100 text-[11px] truncate" [class.line-through]="t.completed">
+                  <span class="px-1.5 py-0.5 rounded bg-slate-100 text-[11px] truncate" [class.line-through]="t.completed">
                     {{ t.title }}
-                  </div>
+                  </span>
                 }
-              </div>
+              </button>
             }
           </div>
         </section>
@@ -85,7 +86,7 @@ import { CalendarDayCell } from './task.model';
             (quickTaskAdded)="taskService.addQuickTask($event.title, $event.priority)"
           />
         </aside>
-      </main>
+      </div>
     </div>
   `
 })

@@ -31,7 +31,7 @@ export class AppComponent implements OnInit, OnDestroy {
   selectedYear = 'ALL';
   activeView: 'ALL' | 'URGENT' | 'RESOLVED' = 'ALL';
 
-  backendStatus = 'Online (API)';
+  backendStatus = 'Łączenie…';
 
   currentUrl = signal<string>('/documents');
 
@@ -124,11 +124,11 @@ export class AppComponent implements OnInit, OnDestroy {
     this.documentService.getDocuments().subscribe({
       next: (docs) => {
         this.documents = docs;
-        this.backendStatus = 'Online (API)';
+        this.backendStatus = 'Połączono';
         this.renderCalendar();
       },
       error: () => {
-        this.backendStatus = 'Błąd API';
+        this.backendStatus = 'Brak połączenia';
       }
     });
   }
