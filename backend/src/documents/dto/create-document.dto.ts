@@ -1,10 +1,14 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, IsObject } from 'class-validator';
+import { IsBoolean, IsString, IsNotEmpty, IsOptional, IsArray, IsObject } from 'class-validator';
 
 export class CreateDocumentDto {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
   duplicateOfId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  anonymizationReviewed?: boolean;
 
   @IsString()
   @IsOptional()

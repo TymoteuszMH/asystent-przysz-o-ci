@@ -58,18 +58,19 @@ export class DocumentService {
     if (file.size > MAX_DOCUMENT_FILE_MB * 1024 * 1024) {
       return Promise.reject(new Error(`Plik może mieć maksymalnie ${MAX_DOCUMENT_FILE_MB} MB.`));
     }
-    const extension = /\.(pdf|docx)$/i.exec(file.name)?.[1];
+    const extension = /\.(pdf|docx|jpe?g|png)$/i.exec(file.name)?.[1]?.toLowerCase();
     if (extension) {
       const data = new FormData();
       data.append('file', file);
-      return firstValueFrom(this.http.post<{ text: string }>(`${this.apiUrl}/extract-${extension.toLowerCase()}`, data).pipe(
+      const format = extension === 'pdf' || extension === 'docx' ? extension : 'image';
+      return firstValueFrom(this.http.post<{ text: string }>(`${this.apiUrl}/extract-${format}`, data).pipe(
         map(result => result.text),
         catchError(this.handleError)
       ));
     }
 
     if (!/\.(txt|json)$/i.test(file.name)) {
-      return Promise.reject(new Error('Wybierz plik TXT, JSON, DOCX lub PDF.'));
+      return Promise.reject(new Error('Wybierz plik TXT, JSON, DOCX, PDF, JPG lub PNG.'));
     }
     return file.text();
   }

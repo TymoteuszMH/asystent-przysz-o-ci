@@ -110,6 +110,7 @@ export interface Document {
 
 export interface CreateDocumentDto {
   duplicateOfId?: string;
+  anonymizationReviewed?: boolean;
   id?: string;
   title: string;
   content: string;

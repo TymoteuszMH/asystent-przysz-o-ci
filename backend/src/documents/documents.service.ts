@@ -662,6 +662,19 @@ export class DocumentsService {
     return document;
   }
 
+  registerRequest(dto: CreateDocumentDto): Document {
+    const original = dto.duplicateOfId ? this.findById(dto.duplicateOfId) : undefined;
+    if (!this.archivedResponse(original) && dto.anonymizationReviewed !== true) {
+      throw new BadRequestException('Potwierdź przegląd anonimizacji przed zapisem wniosku.');
+    }
+    return this.create(dto);
+  }
+
+  private archivedResponse(document?: Document): string | undefined {
+    return [document?.metadata.wersjaAnonimizowana, document?.metadata.odpowiedzZatwierdzona]
+      .find((value): value is string => typeof value === 'string' && !!value.trim());
+  }
+
   create(createDocumentDto: CreateDocumentDto): Document {
     const id =
       createDocumentDto.id ??
@@ -716,6 +729,17 @@ export class DocumentsService {
     const previousRequest = fragments.length
       ? original.content.replace(new RegExp(fragments.join('|'), 'g'), '[zanonimizowano]')
       : original.content;
+
+    if (this.archivedResponse(original)) {
+      document.title = `Duplikat wniosku ${caseNumber}`;
+      document.content = '';
+      document.author = 'Anonim';
+      document.tags = [];
+      document.metadata = {
+        dataWplywu: document.metadata.dataWplywu,
+        terminOdpowiedzi: document.metadata.terminOdpowiedzi,
+      };
+    }
 
     document.metadata = {
       ...document.metadata,
@@ -834,7 +858,7 @@ export class DocumentsService {
           matchedKeywords: uniqueMatched.slice(0, 8),
           daysAgo: diffDays,
           isDuplicate: doc.metadata.decision === 'DUPLIKAT',
-          archivedResponse: (doc.metadata.wersjaAnonimizowana || doc.metadata.odpowiedzZatwierdzona) as string | undefined,
+          archivedResponse: this.archivedResponse(doc),
         });
       }
     }

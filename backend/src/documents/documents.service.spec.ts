@@ -106,6 +106,43 @@ describe('DocumentsService', () => {
     expect(service.findAll()).toHaveLength(count);
   });
 
+  it('requires anonymization review for regular requests and duplicates without an archived answer', () => {
+    const request = { title: 'Temat', content: 'Treść po przeglądzie' };
+    const original = service.create({ ...request, metadata: { odpowiedzZatwierdzona: ' ' } });
+    const count = service.findAll().length;
+    const duplicate = { ...request, duplicateOfId: original.id };
+
+    expect(() => service.registerRequest(request)).toThrow('Potwierdź przegląd anonimizacji');
+    expect(() => service.registerRequest(duplicate)).toThrow('Potwierdź przegląd anonimizacji');
+    expect(service.findAll()).toHaveLength(count);
+    expect(service.registerRequest({ ...request, anonymizationReviewed: true }).content).toBe(request.content);
+    expect(service.registerRequest({ ...duplicate, anonymizationReviewed: true }).content).toBe(request.content);
+  });
+
+  it('closes a duplicate with an archived answer without retaining the incoming request text', () => {
+    const original = service.create({
+      title: 'Wcześniejszy temat',
+      content: 'Wcześniejsza treść',
+      metadata: { numerSprawy: 'BIP-123', odpowiedzZatwierdzona: 'Odpowiedź w archiwum' },
+    });
+    const duplicate = service.registerRequest({
+      title: 'Nowy temat',
+      content: 'Nowa treść',
+      author: 'Jan Nowak',
+      duplicateOfId: original.id,
+      metadata: { przedmiotZapytania: 'Nowa treść', wnioskodawca: 'Jan Nowak' },
+    });
+
+    expect(duplicate.title).toContain('BIP-123');
+    expect(duplicate.content).toBe('');
+    expect(duplicate.metadata.decision).toBe('DUPLIKAT');
+    expect(duplicate.metadata.duplikatWniosku).toMatchObject({
+      sourceId: original.id,
+      responseText: expect.stringContaining('Wcześniejsza treść'),
+    });
+    expect(JSON.stringify(service.findById(duplicate.id))).not.toMatch(/Nowa treść|Nowy temat|Jan Nowak/);
+  });
+
   it('should approve response and mark document as answered with anonymization metadata', () => {
     service.update('1', { metadata: { decision: 'OCZEKUJE' } });
     const approvedDoc = service.approveResponse('1', {

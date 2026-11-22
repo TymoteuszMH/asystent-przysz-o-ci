@@ -37,7 +37,7 @@
         #fileInput
         style="display: none;"
         (change)="onFileSelected($event)"
-        accept=".txt,.json,.pdf,.docx"
+        accept=".txt,.json,.pdf,.docx,.jpg,.jpeg,.png"
       />
 
       <div class="dropzone-icon">
@@ -53,7 +53,7 @@
           <strong>Przeciągnij i upuść plik wniosku tutaj</strong> lub
           <button type="button" class="btn-link" (click)="fileInput.click()" [disabled]="isReadingFile()">wybierz z dysku</button>
         </p>
-        <p class="dropzone-sub-text">TXT, JSON, DOCX i PDF z warstwą tekstową, do 25 MB</p>
+        <p class="dropzone-sub-text">TXT, JSON, DOCX, PDF, JPG i PNG do 25 MB. OCR skanów.</p>
 
         @if (isReadingFile()) { <p role="status">Odczytywanie pliku…</p> }
         @if (uploadedFileName()) {
@@ -152,6 +152,7 @@
       <app-request-anonymization [title]="title()" [content]="content()" [applicant]="author()"
         [disabled]="isSubmitting() || isReadingFile() || isAnalyzingRequest() || isAnalyzing()"
         (applied)="applyAnonymization($event)" />
+      <p role="status">{{ anonymizationReviewed() ? 'Przegląd anonimizacji potwierdzony.' : 'Przed zapisem potwierdź przegląd anonimizacji. Duplikat z odpowiedzią w archiwum jest zwolniony z tego kroku.' }}</p>
 
       <!-- Przycisk wywołania sprawdzenia zbieżności -->
       <div class="action-bar-analysis">
@@ -497,7 +498,7 @@
         <button
           type="submit"
           class="btn btn-primary"
-          [disabled]="isSubmitting() || !!anonymization?.isReviewPending || !title().trim() || !content().trim()"
+          [disabled]="isSubmitting() || !anonymizationReviewed() || !!anonymization?.isReviewPending || !title().trim() || !content().trim()"
         >
           @if (isSubmitting()) {
             <span class="btn-spinner"></span>
@@ -624,6 +625,9 @@
             <span>Potwierdzam, że wcześniejszy wniosek jest dostępny w BIP i dotyczy tego samego żądania.</span>
           </label>
         }
+        @if (!prevDoc.isDuplicate && !prevDoc.archivedResponse?.trim() && !anonymizationReviewed()) {
+          <p>Zamknij podgląd i potwierdź przegląd anonimizacji. Wcześniejszy wniosek nie ma zapisanej odpowiedzi.</p>
+        }
         @if (errorMessage(); as error) {
           <p class="alert alert-danger" role="alert">{{ error }}</p>
         }
@@ -633,7 +637,7 @@
         <button type="button" class="btn btn-secondary" (click)="closeDocPreview()" [disabled]="isSubmitting()">Zamknij</button>
         @if (!prevDoc.isDuplicate) {
           <button type="button" class="btn btn-primary" (click)="finishAsDuplicate(prevDoc)"
-            [disabled]="!duplicateConfirmed() || isSubmitting()">
+            [disabled]="!duplicateConfirmed() || isSubmitting() || (!prevDoc.archivedResponse?.trim() && (!anonymizationReviewed() || !!anonymization?.isReviewPending))">
             {{ isSubmitting() ? 'Zapisywanie…' : 'Zakończ jako duplikat' }}
           </button>
         }

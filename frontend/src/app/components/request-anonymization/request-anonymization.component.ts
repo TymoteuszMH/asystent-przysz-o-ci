@@ -99,8 +99,8 @@ export class RequestAnonymizationComponent implements OnChanges, OnDestroy {
   }
 
   apply(): void {
-    if (!this.preview || this.disabled || this.isScanning) return;
-    this.applied.emit(this.preview);
+    if (this.disabled || this.isScanning || !this.hasText) return;
+    this.applied.emit(this.preview ?? this.source);
   }
 
   private refreshPreview(): void {

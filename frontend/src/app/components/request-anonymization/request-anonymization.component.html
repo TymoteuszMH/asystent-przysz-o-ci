@@ -39,6 +39,9 @@
     <button type="button" class="btn btn-primary" (click)="apply()" [disabled]="disabled || isScanning">
       Zastosuj anonimizację
     </button>
-    <p class="message">Zastosuj wybór albo odznacz wszystkie fragmenty, aby kontynuować.</p>
+  } @else {
+    <button type="button" class="btn btn-secondary" (click)="apply()" [disabled]="disabled || isScanning || !hasText">
+      Potwierdź przegląd bez zmian
+    </button>
   }
 </details>

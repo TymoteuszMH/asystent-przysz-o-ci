@@ -1,4 +1,4 @@
-import { Component, signal, ViewChild } from '@angular/core';
+import { Component, computed, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -31,10 +31,21 @@ type ArchivedRequestPreview = Pick<SimilarDocumentItem,
 export class DocumentCreateComponent {
   @ViewChild(RequestAnonymizationComponent) anonymization?: RequestAnonymizationComponent;
 
+  private readonly reviewedFields = signal<RequestAnonymizationFields | null>(null);
+  readonly anonymizationReviewed = computed(() => {
+    const fields = this.reviewedFields();
+    return !!fields && fields.title === this.title() && fields.content === this.content() &&
+      fields.applicant === this.author();
+  });
+
   applyAnonymization(fields: RequestAnonymizationFields): void {
+    const applicant = fields.applicant ?? '';
+    const changed = fields.title !== this.title() || fields.content !== this.content() || applicant !== this.author();
+    this.reviewedFields.set({ ...fields, applicant });
+    if (!changed) return;
     this.title.set(fields.title);
     this.content.set(fields.content);
-    this.author.set(fields.applicant ?? '');
+    this.author.set(applicant);
     this.requestAnalysis.set(null);
     this.analysisResult.set(null);
   }
@@ -205,9 +216,7 @@ export class DocumentCreateComponent {
       const lineBreak = normalized.indexOf('\n');
       const firstLine = (lineBreak === -1 ? normalized : normalized.slice(0, lineBreak)).trim();
       extractedTitle = firstLine.length < 120 ? firstLine : firstLine.slice(0, 90) + '...';
-      extractedContent = lineBreak !== -1 && firstLine.length < 120 && !/\.docx$/i.test(fileName)
-        ? normalized.slice(lineBreak + 1).trim() || firstLine
-        : normalized;
+      extractedContent = normalized;
     }
 
     if (!this.title() && extractedTitle) {
@@ -327,7 +336,7 @@ export class DocumentCreateComponent {
           date: (doc.metadata.dataWplywu || doc.createdAt).substring(0, 10),
           department: doc.metadata.department,
           status: doc.metadata.status,
-          archivedResponse: doc.metadata.wersjaAnonimizowana || doc.metadata.odpowiedzZatwierdzona,
+          archivedResponse: doc.metadata.wersjaAnonimizowana?.trim() || doc.metadata.odpowiedzZatwierdzona,
           isDuplicate: doc.metadata.decision === 'DUPLIKAT',
         });
       },
@@ -357,14 +366,16 @@ export class DocumentCreateComponent {
 
   finishAsDuplicate(original: ArchivedRequestPreview): void {
     if (!this.duplicateConfirmed() || original.isDuplicate) return;
-    this.onSubmit(original.id);
+    this.onSubmit(original);
   }
 
   // --- Zapis wniosku do rejestru ---
-  onSubmit(duplicateOfId?: string): void {
+  onSubmit(original?: ArchivedRequestPreview): void {
     if (this.isSubmitting() || this.isReadingFile()) return;
-    if (this.anonymization?.isReviewPending) {
-      this.errorMessage.set('Zakończ przegląd anonimizacji przed zapisaniem wniosku.');
+    const duplicateOfId = original?.id;
+    const anonymizationReviewed = this.anonymizationReviewed() && !this.anonymization?.isReviewPending;
+    if (!original?.archivedResponse?.trim() && !anonymizationReviewed) {
+      this.errorMessage.set('Potwierdź przegląd anonimizacji przed zapisem wniosku.');
       return;
     }
     const titleVal = this.title().trim();
@@ -397,6 +408,7 @@ export class DocumentCreateComponent {
 
     const dto: CreateDocumentDto = {
       duplicateOfId,
+      anonymizationReviewed,
       title: titleVal,
       content: contentVal,
       author: applicant,

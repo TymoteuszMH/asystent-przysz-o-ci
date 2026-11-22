@@ -24,6 +24,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { recognizeImage, recognizePdfPages } from './scan-ocr';
 import { OnlineModelService, RequestAnalysis } from './online-model.service';
 import { Document } from './document.interface';
 import { CreateDocumentDto } from './dto/create-document.dto';
@@ -80,17 +81,46 @@ export class DocumentsController {
         timeout: 60_000,
         maxBuffer: MAX_FILE_BYTES,
       });
-      const text = stdout.trim();
+      const text = await recognizePdfPages(path, directory, stdout);
       if (!text) {
-        throw new BadRequestException('PDF nie zawiera warstwy tekstowej. Wklej treść albo użyj pliku po OCR.');
+        throw new BadRequestException('Nie znaleziono czytelnego tekstu w PDF.');
+      }
+      if (Buffer.byteLength(text) > MAX_FILE_BYTES) {
+        throw new PayloadTooLargeException('Odczytany tekst PDF przekracza 25 MB.');
       }
       return { text };
     } catch (error) {
       if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
         throw new PayloadTooLargeException('Warstwa tekstowa PDF przekracza 25 MB.');
       }
-      if (error instanceof BadRequestException) throw error;
-      throw new BadRequestException('Nie można odczytać PDF. Sprawdź plik oraz dostępność programu pdftotext.');
+      if (error instanceof BadRequestException || error instanceof PayloadTooLargeException || error instanceof ServiceUnavailableException) throw error;
+      if (error.code === 'ENOENT') {
+        throw new ServiceUnavailableException('Odczyt PDF wymaga narzędzi Poppler (pdftotext i pdftoppm).');
+      }
+      throw new BadRequestException('Nie można odczytać PDF. Sprawdź plik lub podziel go na mniejsze części.');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+
+  @Post('extract-image')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES + 1 } }))
+  async extractImage(@UploadedFile() file?: { buffer: Buffer }): Promise<{ text: string }> {
+    const bytes = file?.buffer;
+    const isPng = bytes?.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'));
+    const isJpeg = bytes?.subarray(0, 3).equals(Buffer.from('ffd8ff', 'hex'));
+    if (!isPng && !isJpeg) {
+      throw new BadRequestException('Wybierz poprawny skan w formacie JPG lub PNG.');
+    }
+
+    const directory = await mkdtemp(join(tmpdir(), 'govflow-scan-'));
+    try {
+      const path = join(directory, isPng ? 'scan.png' : 'scan.jpg');
+      await writeFile(path, bytes, { mode: 0o600 });
+      const text = await recognizeImage(path);
+      if (!text) throw new BadRequestException('Nie znaleziono czytelnego tekstu na skanie.');
+      return { text };
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -222,7 +252,7 @@ export class DocumentsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createDocumentDto: CreateDocumentDto): Document {
-    return this.documentsService.create(createDocumentDto);
+    return this.documentsService.registerRequest(createDocumentDto);
   }
 
   /**
