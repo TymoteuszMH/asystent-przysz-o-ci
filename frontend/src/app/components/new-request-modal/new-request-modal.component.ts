@@ -1,15 +1,16 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { RequestAnonymizationComponent } from '../request-anonymization/request-anonymization.component';
 import { DocumentService } from '../../services/document.service';
 import { UdipStateService } from '../../services/udip-state.service';
-import { Document } from '../../models/document.model';
+import { Document, RequestAnonymizationFields } from '../../models/document.model';
 
 @Component({
   selector: 'app-new-request-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RequestAnonymizationComponent],
   templateUrl: './new-request-modal.component.html',
   styleUrls: ['./new-request-modal.component.css']
 })
@@ -18,6 +19,13 @@ export class NewRequestModalComponent implements OnInit, OnChanges {
   @Input() totalCasesCount = 16;
   @Output() close = new EventEmitter<void>();
   @Output() created = new EventEmitter<Document>();
+
+  @ViewChild(RequestAnonymizationComponent) anonymization?: RequestAnonymizationComponent;
+
+  applyAnonymization(fields: RequestAnonymizationFields): void {
+    this.subject = fields.title;
+    this.content = fields.content;
+  }
 
   sygnatura = '';
   dateReceived = '';
@@ -91,12 +99,16 @@ export class NewRequestModalComponent implements OnInit, OnChanges {
     this.close.emit();
   }
 
-  goToFullCreator(): void {
-    this.onClose();
-    this.router.navigate(['/documents/new']);
+  async goToFullCreator(): Promise<void> {
+    try {
+      if (await this.router.navigate(['/documents/new'])) this.onClose();
+    } catch {
+      this.errorMessage = 'Nie udało się otworzyć zaawansowanego kreatora.';
+    }
   }
 
   saveCase(): void {
+    if (this.anonymization?.isReviewPending || this.isSaving) return;
     const sygn = this.sygnatura.trim();
     const subj = this.subject.trim();
     const cont = this.content.trim();

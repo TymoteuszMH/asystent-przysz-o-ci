@@ -1,0 +1,44 @@
+<details class="anonymization">
+  <summary>Anonimizuj dane we wniosku</summary>
+  <p>Sprawdź sugestie lub wskaż fragment ręcznie. Zastosowanie anonimizacji zastąpi wybrane dane w formularzu, który zapiszesz w rejestrze.</p>
+
+  <button type="button" class="btn btn-secondary" (click)="findSuggestions()"
+    [disabled]="disabled || isScanning || !hasText">
+    {{ isScanning ? 'Sprawdzanie…' : 'Wykryj dane wrażliwe' }}
+  </button>
+
+  <label class="manual">
+    <span>Fragment do ukrycia</span>
+    <input #phraseInput class="form-control" type="text" [value]="phrase"
+      (input)="phrase = phraseInput.value" (keydown.enter)="$event.preventDefault(); addPhrase()" [disabled]="disabled || !hasText">
+  </label>
+  <button type="button" class="btn btn-secondary" (click)="addPhrase()" [disabled]="disabled || !phrase.trim()">Dodaj fragment</button>
+
+  <p class="message" role="status">{{ message }}</p>
+
+  @if (suggestions.length) {
+    <fieldset>
+      <legend>Dane do ukrycia</legend>
+      @for (suggestion of suggestions; track suggestion.value) {
+        <label class="suggestion">
+          <input #choice type="checkbox" [checked]="selected.has(suggestion.value)"
+            (change)="toggle(suggestion.value, choice.checked)" [disabled]="disabled">
+          <span><strong>{{ suggestion.label }}</strong><br><mark>{{ suggestion.value }}</mark></span>
+        </label>
+      }
+    </fieldset>
+  }
+
+  @if (preview; as result) {
+    <div class="preview">
+      <strong>Podgląd po anonimizacji</strong>
+      @if (result.title) { <p><b>Temat:</b> {{ result.title }}</p> }
+      @if (result.applicant) { <p><b>Wnioskodawca:</b> {{ result.applicant }}</p> }
+      @if (result.content) { <p><b>Treść</b></p><pre>{{ result.content }}</pre> }
+    </div>
+    <button type="button" class="btn btn-primary" (click)="apply()" [disabled]="disabled || isScanning">
+      Zastosuj anonimizację
+    </button>
+    <p class="message">Zastosuj wybór albo odznacz wszystkie fragmenty, aby kontynuować.</p>
+  }
+</details>

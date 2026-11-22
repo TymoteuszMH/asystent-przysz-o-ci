@@ -133,7 +133,17 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
+  get isNewRequestUnavailable(): boolean {
+    return this.isNewModalOpen || this.router.isActive('/documents/new', {
+      paths: 'exact',
+      queryParams: 'ignored',
+      matrixParams: 'ignored',
+      fragment: 'ignored',
+    });
+  }
+
   openNewModal(): void {
+    if (this.isNewRequestUnavailable) return;
     this.isNewModalOpen = true;
   }
 

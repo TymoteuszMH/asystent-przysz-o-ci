@@ -166,18 +166,39 @@
           </svg>
         </div>
         <div>
-          <h2 class="workbench-title">Przygotowanie Modelu Odpowiedzi z Wydziału</h2>
+          <h2 class="workbench-title">Projekt odpowiedzi</h2>
           <p class="workbench-subtitle">
-            System generuje oficjalny model odpowiedzi urzędowej i automatycznie identyfikuje wszelkie wrażliwe pola podlegające anonimizacji (<code>dane_podlegajace_anonimizacji</code>)
+            Zbierz stanowiska wydziałów, wygeneruj projekt pisma i sprawdź sugestie anonimizacji.
           </p>
         </div>
       </div>
 
       <!-- KROK 1: Wprowadzenie materiałów / odpowiedzi z wydziału -->
       <div class="dept-input-section">
+        @if (doc.metadata.planZapytaniaDoWydzialu; as plan) {
+          <p><strong>Projekt prośby do {{ plan.department }}</strong> · Termin wewnętrzny: {{ formatDatePL(plan.deadline) }}</p>
+          <p>{{ plan.notes }}</p>
+        }
+        @if (departmentMaterials().length) {
+          <h3>Materiały zapisane w sprawie</h3>
+          @for (material of departmentMaterials(); track $index) {
+            <div class="material-entry">
+              <details>
+                <summary>{{ material.department }}</summary>
+                <p>{{ material.text }}</p>
+              </details>
+              <button type="button" class="btn btn-secondary btn-sm" (click)="removeMaterial($index)"
+                [disabled]="isSavingMaterials() || isGeneratingResponse()" [attr.aria-label]="'Usuń materiał: ' + material.department">Usuń</button>
+            </div>
+          }
+        }
+        <label class="form-label" for="materialDepartment">Wydział lub biuro</label>
+        <input id="materialDepartment" class="form-control" type="text" [ngModel]="materialDepartment()"
+          (ngModelChange)="materialDepartment.set($event)" placeholder="Nazwa wydziału lub biura">
+
         <div class="input-header-row">
           <label class="form-label" for="deptFeedback">
-            Stanowisko merytoryczne / Informacje przekazane przez wydział:
+            Treść stanowiska
           </label>
           <button
             type="button"
@@ -197,12 +218,23 @@
           (ngModelChange)="departmentFeedback.set($event)"
         ></textarea>
 
+        <div class="material-actions">
+          <label for="materialFile">Wczytaj stanowisko (TXT lub PDF)</label>
+          <input id="materialFile" type="file" accept=".txt,.pdf" (change)="importMaterial($event)" [disabled]="isReadingMaterial()">
+          <button type="button" class="btn btn-secondary" (click)="addMaterial()"
+            [disabled]="isSavingMaterials() || isReadingMaterial() || isGeneratingResponse() || !materialDepartment().trim() || !departmentFeedback().trim()">
+            {{ isSavingMaterials() ? 'Zapisywanie…' : 'Dodaj materiał do sprawy' }}
+          </button>
+        </div>
+        @if (materialMessage(); as message) { <p role="alert">{{ message }}</p> }
+
+        <p>Generowanie wysyła treść wniosku i stanowiska do dostawcy modelu online. Wykryte dane wrażliwe są wcześniej maskowane.</p>
         <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
           <button
             type="button"
             class="btn btn-primary"
             (click)="generateResponse()"
-            [disabled]="isGeneratingResponse() || !departmentFeedback().trim()"
+            [disabled]="isGeneratingResponse() || isSavingMaterials() || isReadingMaterial() || (!departmentFeedback().trim() && !departmentMaterials().length)"
           >
             @if (isGeneratingResponse()) {
               <span class="btn-spinner"></span>
@@ -211,7 +243,7 @@
               <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
               </svg>
-              Generuj model odpowiedzi i oznacz dane wrażliwe
+              Generuj projekt z AI
             }
           </button>
         </div>

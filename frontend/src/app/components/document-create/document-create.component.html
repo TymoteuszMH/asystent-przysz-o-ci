@@ -37,7 +37,7 @@
         #fileInput
         style="display: none;"
         (change)="onFileSelected($event)"
-        accept=".txt,.json,.doc,.docx,.pdf,.rtf"
+        accept=".txt,.json,.pdf"
       />
 
       <div class="dropzone-icon">
@@ -51,10 +51,11 @@
       <div class="dropzone-content">
         <p class="dropzone-main-text">
           <strong>Przeciągnij i upuść plik wniosku tutaj</strong> lub
-          <button type="button" class="btn-link" (click)="fileInput.click()">wybierz z dysku</button>
+          <button type="button" class="btn-link" (click)="fileInput.click()" [disabled]="isReadingFile()">wybierz z dysku</button>
         </p>
-        <p class="dropzone-sub-text">Obsługiwane formaty: .txt, .json, .pdf, .docx, .doc</p>
+        <p class="dropzone-sub-text">TXT, JSON i PDF z warstwą tekstową, do 10 MB</p>
 
+        @if (isReadingFile()) { <p role="status">Odczytywanie pliku…</p> }
         @if (uploadedFileName()) {
           <div class="uploaded-pill">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -80,14 +81,14 @@
     }
 
     <!-- Alert potwierdzenia wysłania prośby do wydziału -->
-    @if (requestSentNotice()) {
+    @if (departmentRequestPlan(); as plan) {
       <div class="alert alert-success" style="margin-top: 20px;">
         <svg class="icon alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
           <polyline points="22 4 12 14.01 9 11.01"/>
         </svg>
         <div>
-          <strong>Prośba wysłana!</strong> {{ requestSentNotice() }}
+          Projekt prośby do {{ plan.department }} zostanie zapisany ze sprawą.
         </div>
       </div>
     }
@@ -108,7 +109,7 @@
             placeholder="np. Zapytanie o wyłapywanie bezdomnych zwierząt"
             required
             [ngModel]="title()"
-            (ngModelChange)="title.set($event)"
+            (ngModelChange)="title.set($event); requestAnalysis.set(null)"
           />
         </div>
 
@@ -138,9 +139,13 @@
           placeholder="Treść zapytania..."
           required
           [ngModel]="content()"
-          (ngModelChange)="content.set($event)"
+          (ngModelChange)="content.set($event); requestAnalysis.set(null)"
         ></textarea>
       </div>
+
+      <app-request-anonymization [title]="title()" [content]="content()" [applicant]="author()"
+        [disabled]="isSubmitting() || isReadingFile() || isAnalyzingRequest() || isAnalyzing()"
+        (applied)="applyAnonymization($event)" />
 
       <!-- Przycisk wywołania sprawdzenia zbieżności -->
       <div class="action-bar-analysis">
@@ -163,6 +168,35 @@
         </button>
       </div>
     </div>
+
+    <section class="form-section">
+      <h2 class="form-section-title">Analiza formalno-merytoryczna</h2>
+      <p>Analiza przesyła tytuł i treść wniosku do dostawcy modelu online. Wynik wymaga weryfikacji urzędnika.</p>
+      <button type="button" class="btn btn-secondary" (click)="analyzeRequest()"
+        [disabled]="isAnalyzingRequest() || isReadingFile() || !!anonymization?.isReviewPending || !content().trim()">
+        {{ isAnalyzingRequest() ? 'Analizowanie wniosku…' : 'Przeanalizuj wniosek z AI' }}
+      </button>
+      @if (requestAnalysisError(); as error) {
+        <p role="alert">{{ error }}</p>
+      }
+      @if (requestAnalysis(); as analysis) {
+        <div class="preview-content-box">
+          <p>{{ analysis.summary }}</p>
+          @if (analysis.title) { <p><strong>Sugerowany tytuł:</strong> {{ analysis.title }}</p> }
+          @if (analysis.applicant) { <p><strong>Wnioskodawca:</strong> {{ analysis.applicant }}</p> }
+          @if (analysis.keywords.length) { <p><strong>Słowa kluczowe:</strong> {{ analysis.keywords.join(', ') }}</p> }
+          @if (analysis.issues.length) {
+            <strong>Kwestie do sprawdzenia</strong>
+            <ul>
+              @for (issue of analysis.issues; track $index) { <li>{{ issue }}</li> }
+            </ul>
+          }
+        </div>
+        <button type="button" class="btn btn-secondary" (click)="applyRequestAnalysis(analysis)" [disabled]="isAnalyzing()">
+          Uzupełnij puste pola, dodaj słowa kluczowe i sprawdź archiwum
+        </button>
+      }
+    </section>
 
     <!-- 3. Wyniki analizy zbieżności i wydziałów -->
     @if (analysisResult(); as analysis) {
@@ -264,7 +298,7 @@
             Rekomendowane wydziały do przygotowania odpowiedzi:
           </h4>
           <p class="dept-lead">
-            Wybierz właściwy wydział merytoryczny i wyślij oficjalną prośbę o przygotowanie projektu odpowiedzi:
+            Wybierz wydział i przygotuj projekt prośby o stanowisko.
           </p>
 
           <div class="dept-list">
@@ -318,7 +352,7 @@
                       <line x1="22" y1="2" x2="11" y2="13"/>
                       <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                     </svg>
-                    Wyślij prośbę o odpowiedź
+                    Przygotuj prośbę
                   </button>
                 </div>
               </div>
@@ -386,7 +420,7 @@
               type="date"
               class="form-control"
               [ngModel]="dataWplywu()"
-              (ngModelChange)="dataWplywu.set($event)"
+              (ngModelChange)="updateReceiptDate($event)"
               name="dataWplywu"
             />
           </div>
@@ -439,7 +473,7 @@
         <button
           type="submit"
           class="btn btn-primary"
-          [disabled]="isSubmitting() || !title().trim() || !content().trim()"
+          [disabled]="isSubmitting() || !!anonymization?.isReviewPending || !title().trim() || !content().trim()"
         >
           @if (isSubmitting()) {
             <span class="btn-spinner"></span>
@@ -463,7 +497,7 @@
   <div class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-header">
-        <h3 class="modal-title">Wysyłka prośby o przygotowanie odpowiedzi</h3>
+        <h3 class="modal-title">Projekt prośby do wydziału</h3>
         <button type="button" class="close-btn" (click)="cancelSendModal()">&times;</button>
       </div>
 
@@ -506,8 +540,8 @@
 
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" (click)="cancelSendModal()">Anuluj</button>
-        <button type="button" class="btn btn-primary" (click)="confirmSendRequest()">
-          Wyślij prośbę do wydziału
+        <button type="button" class="btn btn-primary" (click)="confirmDepartmentRequest()">
+          Zapisz projekt prośby
         </button>
       </div>
     </div>
@@ -540,6 +574,12 @@
             {{ prevDoc.content }}
           </div>
         </div>
+        @if (prevDoc.archivedResponse; as response) {
+          <h4>Odpowiedź z archiwum</h4>
+          <div class="preview-content-box">{{ response }}</div>
+        } @else {
+          <p>W archiwum tej sprawy nie ma zapisanej odpowiedzi.</p>
+        }
       </div>
 
       <div class="modal-footer">

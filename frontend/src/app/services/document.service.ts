@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, catchError, throwError } from 'rxjs';
+import { Observable, catchError, firstValueFrom, map, throwError } from 'rxjs';
 import {
   Document,
   CreateDocumentDto,
@@ -8,7 +8,10 @@ import {
   SimilarityCheckResult,
   GenerateResponseDto,
   ApproveResponseDto,
-  ResponseModelResult
+  ResponseModelResult,
+  RequestAnalysis,
+  RequestAnonymizationFields,
+  AnonymizationSuggestion
 } from '../models/document.model';
 
 @Injectable({
@@ -35,6 +38,37 @@ export class DocumentService {
     return this.http.post<Document>(this.apiUrl, dto).pipe(
       catchError(this.handleError)
     );
+  }
+
+  checkSensitiveData(fields: RequestAnonymizationFields): Observable<AnonymizationSuggestion[]> {
+    return this.http.post<AnonymizationSuggestion[]>(`${this.apiUrl}/check-sensitive-data`, fields).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  analyzeRequest(dto: CheckSimilarityDto): Observable<RequestAnalysis> {
+    return this.http.post<RequestAnalysis>(`${this.apiUrl}/analyze`, dto).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  readDocumentFile(file: File): Promise<string> {
+    if (/\.pdf$/i.test(file.name)) {
+      const data = new FormData();
+      data.append('file', file);
+      return firstValueFrom(this.http.post<{ text: string }>(`${this.apiUrl}/extract-pdf`, data).pipe(
+        map(result => result.text),
+        catchError(this.handleError)
+      ));
+    }
+
+    if (!/\.(txt|json)$/i.test(file.name)) {
+      return Promise.reject(new Error('Obsługiwane pliki to TXT, JSON i PDF z warstwą tekstową.'));
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return Promise.reject(new Error('Plik może mieć maksymalnie 10 MB.'));
+    }
+    return file.text();
   }
 
   checkSimilarity(dto: CheckSimilarityDto): Observable<SimilarityCheckResult> {

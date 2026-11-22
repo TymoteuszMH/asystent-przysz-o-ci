@@ -12,7 +12,7 @@
       <button type="button" class="btn btn-secondary" (click)="toggleFilters()" [attr.aria-expanded]="filtersExpanded" aria-controls="request-filters">
         Filtry i sortowanie <span aria-hidden="true">{{ filtersExpanded ? '▴' : '▾' }}</span>
       </button>
-      <button *ngIf="activeTags.length || filterSort !== 'DEADLINE'" type="button" class="clear-filters-btn" (click)="clearAllFilters()">Wyczyść filtry</button>
+      <button *ngIf="activeTags.length || filterSort !== 'OLDEST'" type="button" class="clear-filters-btn" (click)="clearAllFilters()">Wyczyść filtry</button>
     </div>
     <div id="request-filters" class="filters-body" [hidden]="!filtersExpanded">
       <label class="filter-field">

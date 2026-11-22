@@ -48,7 +48,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   filterDecision = 'ALL';
   filterDept = 'ALL';
   filterYear = 'ALL';
-  filterSort = 'DEADLINE';
+  filterSort = 'OLDEST';
 
   globalSearch = '';
   calDate: string | null = null;
@@ -122,6 +122,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   }
 
   resetData(): void {
+    if (!window.confirm('To zastąpi wszystkie zapisane sprawy i materiały 16 przykładowymi wnioskami. Kontynuować?')) return;
     this.isLoading = true;
     this.documentService.resetDocuments().subscribe({
       next: (docs) => {
@@ -160,7 +161,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
     this.filterDecision = 'ALL';
     this.filterDept = 'ALL';
     this.filterYear = 'ALL';
-    this.filterSort = 'DEADLINE';
+    this.filterSort = 'OLDEST';
     this.calDate = null;
     this.globalSearch = '';
     this.activeView = 'ALL';

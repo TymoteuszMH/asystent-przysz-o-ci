@@ -14,21 +14,22 @@ import { Task, TaskPriority } from './task.model';
         <h2 class="text-lg font-extrabold text-slate-900">{{ selectedDate() | date:'fullDate' }}</h2>
       </div>
 
-      <form (ngSubmit)="submitQuickAdd()" class="p-3.5 bg-slate-50 border-b border-slate-200 flex gap-2">
+      <form (ngSubmit)="submitQuickAdd()" class="quick-add p-3.5 bg-slate-50 border-b border-slate-200 gap-2">
         <input
           type="text"
           [ngModel]="quickTitle()"
           (ngModelChange)="quickTitle.set($event)"
           name="quickTitle"
           placeholder="Szybkie zadanie na ten dzień..."
-          class="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium"
+          class="quick-title px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium"
           required
         />
         <select
           [ngModel]="quickPriority()"
           (ngModelChange)="quickPriority.set($event)"
           name="quickPriority"
-          class="px-2 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold"
+          aria-label="Pilność zadania"
+          class="quick-priority px-2 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold"
         >
           <option value="HIGH">Pilne</option>
           <option value="MEDIUM">Normalne</option>

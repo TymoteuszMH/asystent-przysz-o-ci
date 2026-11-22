@@ -1,21 +1,22 @@
 :host {
   display: block;
+  container-type: inline-size;
 }
 
 .bg-white { background-color: #ffffff; }
-.bg-slate-50 { background-color: #f8fafc; }
+.bg-slate-50 { background-color: var(--bg-surface-alt); }
 .bg-emerald-50\/40 { background-color: rgba(236, 253, 245, 0.4); }
-.bg-blue-600 { background-color: #2563eb; }
+.bg-blue-600 { background: var(--graphite-gradient); }
 .bg-gradient-to-r {
-  background: linear-gradient(to right, #eff6ff, #eef2ff);
+  background: var(--surface-gradient);
 }
 
-.border { border: 1px solid #e2e8f0; }
-.border-b { border-bottom: 1px solid #e2e8f0; }
+.border { border: 1px solid var(--border-light); }
+.border-b { border-bottom: 1px solid var(--border-light); }
 .border-2 { border-width: 2px; }
 .border-dashed { border-style: dashed; }
-.border-slate-200 { border-color: #e2e8f0; }
-.border-slate-300 { border-color: #cbd5e1; }
+.border-slate-200 { border-color: var(--border-light); }
+.border-slate-300 { border-color: var(--border-medium); }
 .border-emerald-200 { border-color: #a7f3d0; }
 
 .rounded-xl { border-radius: 12px; }
@@ -48,13 +49,13 @@
 .font-bold { font-weight: 700; }
 .font-extrabold { font-weight: 800; }
 
-.text-slate-900 { color: #0f172a; }
-.text-slate-500 { color: #64748b; }
-.text-slate-400 { color: #94a3b8; }
+.text-slate-900 { color: var(--text-primary); }
+.text-slate-500 { color: var(--text-muted); }
+.text-slate-400 { color: #8a8a88; }
 .text-white { color: #ffffff; }
 .text-center { text-align: center; }
 
-.line-through { text-decoration: line-through; color: #94a3b8; }
+.line-through { text-decoration: line-through; color: #8a8a88; }
 .cursor-pointer { cursor: pointer; }
 .max-h-\[62vh\] { max-height: 62vh; }
 .overflow-y-auto { overflow-y: auto; }
@@ -64,6 +65,27 @@ button {
   cursor: pointer;
   border: none;
 }
-input, select {
-  outline: none;
+.quick-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.quick-title {
+  min-width: 0;
+}
+
+.quick-priority {
+  width: 6rem;
+  max-width: 100%;
+  justify-self: start;
+}
+
+@container (max-width: 340px) {
+  .quick-add {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .quick-title {
+    grid-column: 1 / -1;
+  }
 }

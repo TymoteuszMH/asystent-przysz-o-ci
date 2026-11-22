@@ -7,7 +7,8 @@ import { UdipStateService } from '../../services/udip-state.service';
 import {
   Document,
   ResponseModelResult,
-  SensitiveField
+  SensitiveField,
+  DepartmentMaterial
 } from '../../models/document.model';
 
 @Component({
@@ -47,12 +48,17 @@ export class DocumentDetailComponent implements OnInit {
 
   // Sekcja odpowiedzi z wydziału i anonimizacji
   departmentFeedback = signal<string>('');
+  materialDepartment = signal('');
+  departmentMaterials = signal<DepartmentMaterial[]>([]);
+  isSavingMaterials = signal(false);
+  isReadingMaterial = signal(false);
+  materialMessage = signal<string | null>(null);
   isGeneratingResponse = signal<boolean>(false);
   responseModel = signal<ResponseModelResult | null>(null);
   activeTab = signal<'highlighted' | 'anonymized'>('highlighted');
   daneAnonimizacji = signal<SensitiveField[]>([]);
   officerNote = signal<string>(
-    'Odpowiedź zweryfikowana pod kątem RODO i zatwierdzona do publikacji w BIP (art. 5 ust. 2 UDIP).'
+    ''
   );
   isApproving = signal<boolean>(false);
   approvalSuccessMessage = signal<string | null>(null);
@@ -317,6 +323,11 @@ export class DocumentDetailComponent implements OnInit {
   }
 
   private initExistingResponseData(doc: Document): void {
+    const materials = doc.metadata.materialyWydzialow;
+    this.departmentMaterials.set(Array.isArray(materials) ? materials.filter(
+      item => typeof item?.department === 'string' && typeof item?.text === 'string'
+    ) : []);
+    this.materialDepartment.set(doc.metadata.department || '');
     if (doc.metadata?.odpowiedzZatwierdzona) {
       const savedFields = (doc.metadata.dane_podlegajace_anonimizacji as SensitiveField[]) || [];
       this.daneAnonimizacji.set(savedFields);
@@ -333,11 +344,65 @@ export class DocumentDetailComponent implements OnInit {
     }
   }
 
+  async importMaterial(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    this.isReadingMaterial.set(true);
+    this.materialMessage.set(null);
+    try {
+      const text = (await this.documentService.readDocumentFile(file)).trim();
+      if (!text) throw new Error('Plik nie zawiera treści.');
+      this.departmentFeedback.update(current => current.trim() ? current + '\n\n' + text : text);
+    } catch (error) {
+      this.materialMessage.set(error instanceof Error ? error.message : 'Nie udało się odczytać pliku.');
+    } finally {
+      this.isReadingMaterial.set(false);
+    }
+  }
+
+  addMaterial(): void {
+    const department = this.materialDepartment().trim();
+    const text = this.departmentFeedback().trim();
+    if (!department || !text) return;
+    this.saveMaterials([...this.departmentMaterials(), { department, text }], () => {
+      if (text === this.departmentFeedback().trim()) this.departmentFeedback.set('');
+    });
+  }
+
+  removeMaterial(index: number): void {
+    this.saveMaterials(this.departmentMaterials().filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  private saveMaterials(materials: DepartmentMaterial[], onSaved?: () => void): void {
+    const doc = this.document();
+    if (!doc || this.isSavingMaterials() || this.isGeneratingResponse()) return;
+    this.isSavingMaterials.set(true);
+    this.materialMessage.set(null);
+    this.documentService.updateDocument(doc.id, { metadata: { materialyWydzialow: materials } }).subscribe({
+      next: updated => {
+        this.document.set(updated);
+        this.departmentMaterials.set(materials);
+        this.isSavingMaterials.set(false);
+        onSaved?.();
+      },
+      error: (error: Error) => {
+        this.isSavingMaterials.set(false);
+        this.materialMessage.set(error.message);
+      },
+    });
+  }
+
   // --- Generowanie modelu odpowiedzi urzędowej ---
   generateResponse(): void {
     const doc = this.document();
-    const feedback = this.departmentFeedback().trim();
-    if (!doc) return;
+    if (!doc || this.isGeneratingResponse() || this.isSavingMaterials() || this.isReadingMaterial()) return;
+    const current = this.departmentFeedback().trim();
+    const materials = this.departmentMaterials();
+    const pending = current ? [{ department: this.materialDepartment().trim() || 'Wydział merytoryczny', text: current }] : [];
+    const feedback = [...materials, ...pending].map(item => `${item.department}:\n${item.text}`).join('\n\n');
 
     if (!feedback) {
       this.errorMessage.set('Wprowadź stanowisko/informacje otrzymane z wydziału.');
@@ -459,7 +524,7 @@ export class DocumentDetailComponent implements OnInit {
           this.document.set(updatedDoc);
           this.isApproving.set(false);
           this.approvalSuccessMessage.set(
-            'Odpowiedź została pomyślnie zatwierdzona! Status sprawy zmieniono na "odpowiedziano".'
+            'Zapisano zatwierdzoną wersję odpowiedzi.'
           );
         },
         error: (err: Error) => {

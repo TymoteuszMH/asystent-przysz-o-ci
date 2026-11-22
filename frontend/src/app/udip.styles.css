@@ -31,7 +31,7 @@
 }
 
 .topbar .icon-btn:hover {
-  background-color: rgba(60, 64, 67, 0.08);
+  background-color: rgba(27, 27, 27, 0.08);
 }
 
 .brand {
@@ -50,7 +50,7 @@
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  background: #183758;
+  background: var(--graphite-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -197,7 +197,7 @@
   padding: 0 20px 0 16px;
   border-radius: 10px;
   border: none;
-  background: #183758;
+  background: var(--graphite-gradient);
   color: white;
   font-size: 14px;
   font-weight: 700;
@@ -208,8 +208,13 @@
   text-decoration: none;
 }
 
-.compose-btn:hover {
-  background: #24496f;
+.compose-btn:hover:not(:disabled) {
+  background: var(--graphite-gradient-hover);
+}
+
+.compose-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
 }
 
 .nav-list {
@@ -235,12 +240,13 @@
 }
 
 .nav-tile:hover {
-  background: rgba(60, 64, 67, 0.08);
+  background: rgba(27, 27, 27, 0.08);
 }
 
 .nav-tile.active {
-  background: var(--bg-nav-active);
-  color: #041e49;
+  background: var(--surface-gradient);
+  box-shadow: inset 3px 0 var(--primary), inset 0 0 0 1px var(--border-light);
+  color: var(--text-primary);
   font-weight: 700;
 }
 
@@ -287,7 +293,7 @@
 .cal-tile-title {
   font-weight: 700;
   font-size: 13px;
-  color: #041e49;
+  color: var(--text-primary);
 }
 
 .cal-nav {
@@ -376,11 +382,11 @@
   background: var(--primary-soft);
   color: var(--primary);
   font-weight: 700;
-  border-color: #aecbfa;
+  border-color: var(--border-medium);
 }
 
 .cal-day.selected-day {
-  outline: 2px solid #041e49;
+  outline: 2px solid var(--text-primary);
   outline-offset: 1px;
 }
 
@@ -428,7 +434,7 @@ table.cases-table {
 }
 
 .cases-table thead th {
-  background: #f8fafd;
+  background: var(--bg-surface-alt);
   color: var(--text-secondary);
   font-size: 11.5px;
   font-weight: 700;
@@ -446,7 +452,7 @@ table.cases-table {
 }
 
 .cases-table tbody tr:hover {
-  box-shadow: inset 0 0 0 999px rgba(11, 87, 208, 0.045);
+  box-shadow: inset 0 0 0 999px rgba(27, 27, 27, 0.045);
 }
 
 .cases-table tbody tr.row-red {
@@ -480,7 +486,7 @@ table.cases-table {
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
-  color: #041e49;
+  color: var(--text-primary);
   overflow-wrap: anywhere;
 }
 
@@ -495,8 +501,8 @@ table.cases-table {
   border-radius: var(--radius-pill);
   font-size: 11.5px;
   font-weight: 700;
-  background: #eef2f6;
-  color: #1f2937;
+  background: var(--bg-hover);
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
@@ -548,7 +554,7 @@ table.cases-table {
   position: fixed;
   bottom: 20px;
   right: 24px;
-  background: #1f2937;
+  background: var(--text-primary);
   color: #ffffff;
   padding: 10px 16px;
   border-radius: var(--radius-sm);

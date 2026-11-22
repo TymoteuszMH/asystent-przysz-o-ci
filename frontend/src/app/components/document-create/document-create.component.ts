@@ -1,23 +1,37 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { RequestAnonymizationComponent } from '../request-anonymization/request-anonymization.component';
 import { DocumentService } from '../../services/document.service';
 import {
   CreateDocumentDto,
   SimilarityCheckResult,
   DepartmentRecommendation,
-  SimilarDocumentItem
+  SimilarDocumentItem,
+  RequestAnalysis,
+  DocumentMetadata,
+  RequestAnonymizationFields
 } from '../../models/document.model';
 
 @Component({
   selector: 'app-document-create',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RequestAnonymizationComponent, RouterLink],
   templateUrl: './document-create.component.html',
   styleUrls: ['./document-create.component.css']
 })
 export class DocumentCreateComponent {
+  @ViewChild(RequestAnonymizationComponent) anonymization?: RequestAnonymizationComponent;
+
+  applyAnonymization(fields: RequestAnonymizationFields): void {
+    this.title.set(fields.title);
+    this.content.set(fields.content);
+    this.author.set(fields.applicant ?? '');
+    this.requestAnalysis.set(null);
+    this.analysisResult.set(null);
+  }
+
   // Form fields
   numerSprawy = signal<string>('');
   title = signal<string>('');
@@ -33,13 +47,17 @@ export class DocumentCreateComponent {
   // File upload state
   uploadedFileName = signal<string | null>(null);
   isDragOver = signal<boolean>(false);
+  isReadingFile = signal(false);
+  requestAnalysis = signal<RequestAnalysis | null>(null);
+  isAnalyzingRequest = signal(false);
+  requestAnalysisError = signal<string | null>(null);
 
   // Similarity & department analysis state
   isAnalyzing = signal<boolean>(false);
   analysisResult = signal<SimilarityCheckResult | null>(null);
   analysisError = signal<string | null>(null);
   targetDepartmentForRequest = signal<DepartmentRecommendation | null>(null);
-  requestSentNotice = signal<string | null>(null);
+  departmentRequestPlan = signal<DocumentMetadata['planZapytaniaDoWydzialu']>(undefined);
   requestInternalDeadline = signal<string>(this.calculateInternalDeadline());
   requestNotes = signal<string>('');
   previewModalDoc = signal<SimilarDocumentItem | null>(null);
@@ -54,9 +72,9 @@ export class DocumentCreateComponent {
     private router: Router
   ) {}
 
-  private calculateDefaultDeadline(): string {
-    const d = new Date();
-    d.setDate(d.getDate() + 14); // 14 dni ustawowe
+  private calculateDefaultDeadline(date = this.dataWplywu()): string {
+    const d = new Date(date + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + 14);
     return d.toISOString().substring(0, 10);
   }
 
@@ -96,20 +114,58 @@ export class DocumentCreateComponent {
     }
   }
 
-  processFile(file: File): void {
-    this.uploadedFileName.set(file.name);
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const text = reader.result as string;
+  async processFile(file: File): Promise<void> {
+    if (this.isReadingFile()) return;
+    this.isReadingFile.set(true);
+    this.analysisError.set(null);
+    try {
+      const text = await this.documentService.readDocumentFile(file);
+      if (!text.trim()) throw new Error('Plik nie zawiera treści.');
+      this.requestAnalysis.set(null);
+      this.uploadedFileName.set(file.name);
       this.parseAndApplyFileContent(file.name, text);
-    };
+    } catch (error) {
+      this.analysisError.set(error instanceof Error ? error.message : 'Nie udało się odczytać pliku.');
+    } finally {
+      this.isReadingFile.set(false);
+    }
+  }
 
-    reader.onerror = () => {
-      this.analysisError.set('Nie udało się odczytać wybranego pliku.');
-    };
+  analyzeRequest(): void {
+    if (this.anonymization?.isReviewPending) return;
+    const title = this.title().trim();
+    const content = this.content().trim();
+    if (!content || this.isAnalyzingRequest()) return;
+    this.isAnalyzingRequest.set(true);
+    this.requestAnalysis.set(null);
+    this.requestAnalysisError.set(null);
+    this.documentService.analyzeRequest({ title, content }).subscribe({
+      next: result => {
+        this.isAnalyzingRequest.set(false);
+        if (title === this.title().trim() && content === this.content().trim()) {
+          this.requestAnalysis.set(result);
+        }
+      },
+      error: (error: Error) => {
+        this.isAnalyzingRequest.set(false);
+        this.requestAnalysisError.set(error.message);
+      },
+    });
+  }
 
-    reader.readAsText(file);
+  applyRequestAnalysis(analysis: RequestAnalysis): void {
+    if (analysis.title && !this.title().trim()) this.title.set(analysis.title);
+    if (analysis.applicant && !this.author().trim()) this.author.set(analysis.applicant);
+    if (analysis.keywords.length) {
+      const existing = this.tagsInput().split(',').map(tag => tag.trim()).filter(Boolean);
+      this.tagsInput.set([...new Set([...existing, ...analysis.keywords])].join(', '));
+    }
+    this.checkSimilarity();
+  }
+
+  updateReceiptDate(date: string): void {
+    this.dataWplywu.set(date);
+    this.terminOdpowiedzi.set(date ? this.calculateDefaultDeadline(date) : '');
   }
 
   parseAndApplyFileContent(fileName: string, text: string): void {
@@ -122,17 +178,17 @@ export class DocumentCreateComponent {
     if (fileName.toLowerCase().endsWith('.json')) {
       try {
         const json = JSON.parse(text);
-        extractedTitle = json.title || json.przedmiot || '';
-        extractedContent = json.content || json.tresc || json.opis || text;
-        extractedAuthor = json.author || json.wnioskodawca || '';
-        if (json.tags && Array.isArray(json.tags)) {
-          extractedTags = json.tags;
+        extractedTitle = [json.title, json.przedmiot].find(value => typeof value === 'string') || '';
+        extractedContent = [json.content, json.tresc, json.opis].find(value => typeof value === 'string' && value.trim()) || text;
+        extractedAuthor = [json.author, json.wnioskodawca].find(value => typeof value === 'string') || '';
+        if (Array.isArray(json.tags)) {
+          extractedTags = json.tags.filter((tag: unknown) => typeof tag === 'string');
         }
       } catch {
         extractedContent = text;
       }
     } else {
-      // Dla plików .txt, .doc, .pdf z tekstem
+      // Dla plików TXT i tekstu wyodrębnionego z PDF
       const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
       if (lines.length > 0) {
         // Pierwsza linia jako domyślny tytuł (jeśli w miarę krótka)
@@ -227,14 +283,16 @@ export class DocumentCreateComponent {
     this.targetDepartmentForRequest.set(null);
   }
 
-  confirmSendRequest(): void {
+  confirmDepartmentRequest(): void {
     const dept = this.targetDepartmentForRequest();
     if (!dept) return;
 
     this.department.set(dept.name);
-    this.requestSentNotice.set(
-      `Wysłano oficjalną prośbę o przygotowanie odpowiedzi do: ${dept.name} (${dept.contactEmail}) z terminem wewnętrznym do ${this.requestInternalDeadline()}.`
-    );
+    this.departmentRequestPlan.set({
+      department: dept.name,
+      deadline: this.requestInternalDeadline(),
+      notes: this.requestNotes(),
+    });
     this.targetDepartmentForRequest.set(null);
   }
 
@@ -254,6 +312,7 @@ export class DocumentCreateComponent {
 
   // --- Zapis wniosku do rejestru ---
   onSubmit(): void {
+    if (this.anonymization?.isReviewPending || this.isSubmitting()) return;
     const titleVal = this.title().trim();
     const contentVal = this.content().trim();
 
@@ -300,7 +359,7 @@ export class DocumentCreateComponent {
         status: this.status(),
         zbiezneWnioskiIds: similarDocIds.length > 0 ? similarDocIds : undefined,
         rekomendowaneWydzialy: recommendedDepts.length > 0 ? recommendedDepts : undefined,
-        prosbaWyslanaDo: this.requestSentNotice() ? [this.department()] : undefined
+        planZapytaniaDoWydzialu: this.departmentRequestPlan()
       }
     };
 

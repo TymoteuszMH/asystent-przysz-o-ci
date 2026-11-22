@@ -1,3 +1,14 @@
+export interface RequestAnonymizationFields {
+  title: string;
+  content: string;
+  applicant?: string;
+}
+
+export interface AnonymizationSuggestion {
+  value: string;
+  label: string;
+}
+
 export interface SensitiveField {
   id: string;
   category: 'osoba' | 'email' | 'telefon' | 'adres' | 'pesel' | 'nip' | 'inne';
@@ -19,6 +30,19 @@ export interface ResponseModelResult {
   dane_podlegajace_anonimizacji: SensitiveField[];
   anonymizedPreviewText: string;
   generatedAt: string;
+}
+
+export interface RequestAnalysis {
+  title: string;
+  applicant: string;
+  summary: string;
+  issues: string[];
+  keywords: string[];
+}
+
+export interface DepartmentMaterial {
+  department: string;
+  text: string;
 }
 
 export interface GenerateResponseDto {
@@ -53,6 +77,8 @@ export interface DocumentMetadata {
   zbiezneWnioskiIds?: string[];
   rekomendowaneWydzialy?: string[];
   prosbaWyslanaDo?: string[];
+  planZapytaniaDoWydzialu?: { department: string; deadline: string; notes: string };
+  materialyWydzialow?: DepartmentMaterial[];
   odpowiedzZatwierdzona?: string;
   wersjaAnonimizowana?: string;
   dane_podlegajace_anonimizacji?: SensitiveField[];
@@ -101,6 +127,7 @@ export interface SimilarDocumentItem {
   similarityPercentage: number;
   matchedKeywords: string[];
   daysAgo: number;
+  archivedResponse?: string;
 }
 
 export interface DepartmentRecommendation {
