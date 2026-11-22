@@ -7,22 +7,87 @@ import {
   Param,
   HttpCode,
   HttpStatus,
+  BadRequestException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   DocumentsService,
   SimilarityCheckResult,
   ResponseModelResult,
 } from './documents.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+import { OnlineModelService, RequestAnalysis } from './online-model.service';
 import { Document } from './document.interface';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
+import { CheckSensitiveDataDto } from './dto/check-sensitive-data.dto';
 import { CheckSimilarityDto } from './dto/check-similarity.dto';
 import { GenerateResponseDto } from './dto/generate-response.dto';
 import { ApproveResponseDto } from './dto/approve-response.dto';
 
 @Controller('documents')
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) { }
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly onlineModel: OnlineModelService,
+  ) {}
+
+  @Post('check-sensitive-data')
+  @HttpCode(HttpStatus.OK)
+  checkSensitiveData(@Body() dto: CheckSensitiveDataDto): { value: string; label: string }[] {
+    const applicant = dto.applicant?.trim();
+    const suggestions = new Map<string, string>();
+    if (applicant && applicant !== 'Anonim' && applicant !== '[zanonimizowano]') {
+      suggestions.set(applicant, 'Dane wnioskodawcy');
+    }
+    for (const text of [dto.title, dto.content]) {
+      for (const { value, label } of this.documentsService.detectSensitiveData(text, applicant)) {
+        if (!suggestions.has(value)) suggestions.set(value, label);
+      }
+    }
+    return Array.from(suggestions, ([value, label]) => ({ value, label }));
+  }
+
+  @Post('analyze')
+  @HttpCode(HttpStatus.OK)
+  analyze(@Body() dto: CheckSimilarityDto): Promise<RequestAnalysis> {
+    return this.onlineModel.analyzeRequest(dto);
+  }
+
+  @Post('extract-pdf')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  async extractPdf(@UploadedFile() file?: { buffer: Buffer }): Promise<{ text: string }> {
+    if (file?.buffer?.subarray(0, 5).toString() !== '%PDF-') {
+      throw new BadRequestException('Wybierz poprawny plik PDF.');
+    }
+
+    const directory = await mkdtemp(join(tmpdir(), 'govflow-pdf-'));
+    try {
+      const path = join(directory, 'request.pdf');
+      await writeFile(path, file.buffer, { mode: 0o600 });
+      const { stdout } = await promisify(execFile)('pdftotext', ['-enc', 'UTF-8', path, '-'], {
+        timeout: 10_000,
+        maxBuffer: 64_000,
+      });
+      const text = stdout.trim();
+      if (!text) {
+        throw new BadRequestException('PDF nie zawiera warstwy tekstowej. Wklej treść albo użyj pliku po OCR.');
+      }
+      return { text };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException('Nie można odczytać PDF. Sprawdź plik oraz dostępność programu pdftotext.');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
 
   /**
    * POST /documents/check-similarity
@@ -54,11 +119,27 @@ export class DocumentsController {
    */
   @Post(':id/generate-response')
   @HttpCode(HttpStatus.OK)
-  generateResponse(
+  async generateResponse(
     @Param('id') id: string,
     @Body() generateResponseDto: GenerateResponseDto,
-  ): ResponseModelResult {
-    return this.documentsService.generateResponseModel(id, generateResponseDto);
+  ): Promise<ResponseModelResult> {
+    const document = this.documentsService.findById(id);
+    const applicant = (document.metadata.wnioskodawca || document.metadata.applicant || document.author) as string;
+    const passages = [document.title, document.content, generateResponseDto.departmentFeedback];
+    const detected = passages.flatMap(text => this.documentsService.detectSensitiveData(text, applicant));
+    const masks = [...new Set(detected.map(field => field.value))]
+      .sort((first, second) => second.length - first.length);
+    const maskIds = new Map(masks.map((value, index) => [value, index]));
+    const escapedMasks = masks.map(value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const maskPattern = new RegExp(['\\[DANE_\\d+\\]', ...escapedMasks].join('|'), 'g');
+    const redact = (text: string) => text.replace(maskPattern, value => {
+      const index = maskIds.get(value);
+      return index === undefined ? '[dane]' : `[DANE_${index}]`;
+    });
+    const [title, request, feedback] = passages.map(redact);
+    const response = await this.onlineModel.draftResponse(title, request, feedback);
+    const restored = response.replace(/\[DANE_(\d+)\]/g, (marker, index) => masks[Number(index)] ?? marker);
+    return this.documentsService.generateResponseModel(id, generateResponseDto, restored);
   }
 
   /**

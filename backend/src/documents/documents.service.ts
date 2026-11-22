@@ -1,3 +1,5 @@
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { Document } from './document.interface';
 import { CreateDocumentDto } from './dto/create-document.dto';
@@ -19,6 +21,7 @@ export interface SimilarDocumentItem {
   similarityPercentage: number;
   matchedKeywords: string[];
   daysAgo: number;
+  archivedResponse?: string;
 }
 
 export interface DepartmentRecommendation {
@@ -76,7 +79,31 @@ function addDaysISO(iso: string, days: number): string {
 
 @Injectable()
 export class DocumentsService {
-  private documents: Document[] = this.buildInitialDocuments();
+  private readonly storagePath = process.env.DOCUMENTS_FILE;
+  private documents: Document[] = this.loadDocuments();
+
+  private loadDocuments(): Document[] {
+    if (this.storagePath) {
+      try {
+        const records = JSON.parse(readFileSync(this.storagePath, 'utf8'));
+        if (!Array.isArray(records)) throw new Error('Nieprawidłowy format archiwum wniosków.');
+        return records;
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+    return this.buildInitialDocuments();
+  }
+
+  private saveDocuments(documents: Document[]): void {
+    if (this.storagePath) {
+      mkdirSync(dirname(this.storagePath), { recursive: true });
+      const temporaryPath = this.storagePath + '.tmp';
+      writeFileSync(temporaryPath, JSON.stringify(documents), { mode: 0o600 });
+      renameSync(temporaryPath, this.storagePath);
+    }
+    this.documents = documents;
+  }
 
   private buildInitialDocuments(): Document[] {
     const today = new Date();
@@ -602,12 +629,13 @@ export class DocumentsService {
   }
 
   reset(): Document[] {
-    this.documents = this.buildInitialDocuments();
+    this.saveDocuments(this.buildInitialDocuments());
     return this.documents;
   }
 
   update(id: string, updateDto: UpdateDocumentDto): Document {
-    const document = this.findById(id);
+    const previous = this.findById(id);
+    const document = { ...previous };
 
     if (updateDto.title !== undefined) {
       document.title = updateDto.title;
@@ -628,6 +656,7 @@ export class DocumentsService {
       };
     }
     document.updatedAt = updateDto.updatedAt ?? new Date().toISOString();
+    this.saveDocuments(this.documents.map(item => item === previous ? document : item));
 
     return document;
   }
@@ -661,7 +690,7 @@ export class DocumentsService {
       metadata: createDocumentDto.metadata ?? {},
     };
 
-    this.documents.push(newDocument);
+    this.saveDocuments([...this.documents, newDocument]);
 
     return newDocument;
   }
@@ -679,11 +708,11 @@ export class DocumentsService {
     const inputStems = this.extractStems(fullInputText);
     const titleStems = this.extractStems(inputTitle);
 
-    // Wyznaczenie okna czasowego (ostatni rok: 365 dni, z elastycznym zakresem do 550 dni dla bazy testowej)
+    // Data graniczna archiwum podobnych spraw.
     const now = new Date();
     const refTime = now.getTime();
     const ONE_YEAR_DAYS = 365;
-    const EXTENDED_YEAR_DAYS = 550; // Uwzględnia wnioski z 2025 r.
+
 
     const scoredDocs: SimilarDocumentItem[] = [];
 
@@ -695,8 +724,7 @@ export class DocumentsService {
       const docTime = new Date(docDateStr).getTime();
       const diffDays = Math.max(0, Math.round((refTime - docTime) / (1000 * 60 * 60 * 24)));
 
-      // Filtrujemy dokumenty z ostatniego roku (max 550 dni)
-      if (diffDays > EXTENDED_YEAR_DAYS) {
+      if (!Number.isFinite(docTime) || docTime > refTime || refTime - docTime > ONE_YEAR_DAYS * 86_400_000) {
         continue;
       }
 
@@ -762,6 +790,7 @@ export class DocumentsService {
           similarityPercentage: finalPercentage,
           matchedKeywords: uniqueMatched.slice(0, 8),
           daysAgo: diffDays,
+          archivedResponse: (doc.metadata.wersjaAnonimizowana || doc.metadata.odpowiedzZatwierdzona) as string | undefined,
         });
       }
     }
@@ -983,7 +1012,7 @@ export class DocumentsService {
    * Przygotowuje urzędowy model odpowiedzi na podstawie odpowiedzi z wydziału merytorycznego
    * oraz wykrywa wszelkie wrażliwe pola podlegające potencjalnej anonimizacji.
    */
-  generateResponseModel(docId: string, dto: GenerateResponseDto): ResponseModelResult {
+  generateResponseModel(docId: string, dto: GenerateResponseDto, responseBody?: string): ResponseModelResult {
     const document = this.findById(docId);
     const caseNumber =
       (document.metadata?.numerSprawy as string) ||
@@ -1024,10 +1053,7 @@ export class DocumentsService {
       '',
       `Działając na podstawie art. 13 ust. 1 w zw. z art. 10 ust. 1 ustawy z dnia 6 września 2001 r. o dostępie do informacji publicznej (Dz. U. z 2022 r. poz. 902 z późn. zm.), w odpowiedzi na Państwa wniosek, po uzyskaniu stanowiska merytorycznego z ${deptName}, uprzejmie informuję:`,
       '',
-      dto.departmentFeedback.trim(),
-      '',
-      'Pouczenie:',
-      'Zgodnie z art. 5 ust. 2 ustawy z dnia 6 września 2001 r. o dostępie do informacji publicznej, prawo do informacji publicznej podlega ograniczeniu ze względu na prywatność osoby fizycznej lub tajemnicę przedsiębiorcy. W związku z powyższym dane wrażliwe podlegające ochronie zostały poddane anonimizacji w publicznym rejestrze BIP.',
+      responseBody ?? dto.departmentFeedback.trim(),
       '',
       'Z upoważnienia Prezydenta Miasta Bydgoszczy',
       (document.metadata?.osobaOdpowiedzialna as string) || 'Inspektor ds. Informacji Publicznej',
@@ -1252,7 +1278,8 @@ export class DocumentsService {
    * Zatwierdzenie ostatecznej odpowiedzi przez urzędnika wraz z zapisanymi danymi o anonimizacji.
    */
   approveResponse(docId: string, dto: ApproveResponseDto): Document {
-    const document = this.findById(docId);
+    const previous = this.findById(docId);
+    const document = { ...previous, metadata: { ...previous.metadata } };
     const nowIso = new Date().toISOString();
     const today = nowIso.substring(0, 10);
 
@@ -1265,6 +1292,7 @@ export class DocumentsService {
       document.metadata.notatkaUrzednika = dto.officerNote;
     }
     document.updatedAt = nowIso;
+    this.saveDocuments(this.documents.map(item => item === previous ? document : item));
 
     return document;
   }
