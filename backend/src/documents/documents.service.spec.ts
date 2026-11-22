@@ -72,6 +72,7 @@ describe('DocumentsService', () => {
   });
 
   it('should approve response and mark document as answered with anonymization metadata', () => {
+    service.update('1', { metadata: { decision: 'OCZEKUJE' } });
     const approvedDoc = service.approveResponse('1', {
       finalResponseText: 'Oficjalna zatwierdzona odpowiedź...',
       anonymizedText: 'Oficjalna [zanonimizowana] odpowiedź...',
@@ -89,6 +90,7 @@ describe('DocumentsService', () => {
     });
 
     expect(approvedDoc.metadata.status).toBe('odpowiedziano');
+    expect(service.findById('1').metadata.decision).toBe('ROZPATRZONY');
     expect(approvedDoc.metadata.odpowiedzZatwierdzona).toBe('Oficjalna zatwierdzona odpowiedź...');
     expect(approvedDoc.metadata.wersjaAnonimizowana).toBe('Oficjalna [zanonimizowana] odpowiedź...');
     expect(approvedDoc.metadata.notatkaUrzednika).toBe('Zatwierdzono do publikacji w BIP');

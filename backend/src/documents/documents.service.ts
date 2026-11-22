@@ -1284,6 +1284,7 @@ export class DocumentsService {
     const today = nowIso.substring(0, 10);
 
     document.metadata.status = 'odpowiedziano';
+    document.metadata.decision = 'ROZPATRZONY';
     document.metadata.dataOdpowiedzi = today;
     document.metadata.odpowiedzZatwierdzona = dto.finalResponseText;
     document.metadata.wersjaAnonimizowana = dto.anonymizedText || dto.finalResponseText;
