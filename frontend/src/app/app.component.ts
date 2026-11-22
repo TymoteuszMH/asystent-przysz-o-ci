@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet, Router } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
+import { Subscription, filter } from 'rxjs';
 import { UdipStateService } from './services/udip-state.service';
 import { DocumentService } from './services/document.service';
 import { Document } from './models/document.model';
@@ -32,6 +32,8 @@ export class AppComponent implements OnInit, OnDestroy {
   activeView: 'ALL' | 'URGENT' | 'RESOLVED' = 'ALL';
 
   backendStatus = 'Online (API)';
+
+  currentUrl = signal<string>('/documents');
 
   countAll = 0;
   countUrgent = 0;
@@ -66,6 +68,16 @@ export class AppComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.currentUrl.set(this.router.url);
+
+    this.subs.add(
+      this.router.events.pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd)
+      ).subscribe((e: NavigationEnd) => {
+        this.currentUrl.set(e.urlAfterRedirects || e.url);
+      })
+    );
+
     this.subs.add(
       this.udipState.counts$.subscribe(counts => {
         this.countAll = counts.all;
@@ -170,11 +182,13 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   get isCalendarView(): boolean {
-    return this.router.url === '/calendar';
+    return this.currentUrl().startsWith('/calendar');
   }
 
-  openCalendar(): void {
-    if (this.router.url !== '/calendar') {
+  openCalendar(date?: string): void {
+    const targetDate = date || this.calSelectedDate || this.taskService.getTodayISO();
+    this.taskService.selectedDate.set(targetDate);
+    if (!this.isCalendarView) {
       this.router.navigate(['/calendar']);
     }
   }

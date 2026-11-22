@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { TaskService } from './task.service';
 import { TaskSidebarComponent } from './task-sidebar.component';
 import { CalendarDayCell } from './task.model';
@@ -12,9 +13,19 @@ import { CalendarDayCell } from './task.model';
   template: `
     <div class="min-h-screen flex flex-col bg-slate-50">
       <header class="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 class="text-lg font-extrabold text-slate-900">Kalendarz Zadań i Realizacji</h1>
-          <p class="text-xs text-slate-500">Moduł Angular 19 (Standalone + Signals)</p>
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            (click)="goBackToDocuments()"
+            class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer"
+            title="Powrót do tabeli wniosków UDIP"
+          >
+            <span>← Powrót do wniosków</span>
+          </button>
+          <div>
+            <h1 class="text-lg font-extrabold text-slate-900">Kalendarz Zadań i Realizacji</h1>
+            <p class="text-xs text-slate-500">Moduł zadań i terminów Urzędu Miasta Bydgoszczy</p>
+          </div>
         </div>
 
         <div class="flex items-center gap-2">
@@ -79,6 +90,7 @@ import { CalendarDayCell } from './task.model';
   `
 })
 export class TaskCalendarComponent {
+  private readonly router = inject(Router);
   readonly taskService = inject(TaskService);
   private readonly cursorDate = signal(new Date());
 
@@ -131,5 +143,9 @@ export class TaskCalendarComponent {
     const now = new Date();
     this.cursorDate.set(now);
     this.taskService.selectedDate.set(this.taskService.getTodayISO());
+  }
+
+  goBackToDocuments(): void {
+    this.router.navigate(['/documents']);
   }
 }
