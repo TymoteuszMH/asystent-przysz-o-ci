@@ -8,6 +8,8 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  PayloadTooLargeException,
+  ServiceUnavailableException,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -30,6 +32,8 @@ import { CheckSensitiveDataDto } from './dto/check-sensitive-data.dto';
 import { CheckSimilarityDto } from './dto/check-similarity.dto';
 import { GenerateResponseDto } from './dto/generate-response.dto';
 import { ApproveResponseDto } from './dto/approve-response.dto';
+
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 @Controller('documents')
 export class DocumentsController {
@@ -62,7 +66,7 @@ export class DocumentsController {
 
   @Post('extract-pdf')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES + 1 } }))
   async extractPdf(@UploadedFile() file?: { buffer: Buffer }): Promise<{ text: string }> {
     if (file?.buffer?.subarray(0, 5).toString() !== '%PDF-') {
       throw new BadRequestException('Wybierz poprawny plik PDF.');
@@ -73,8 +77,8 @@ export class DocumentsController {
       const path = join(directory, 'request.pdf');
       await writeFile(path, file.buffer, { mode: 0o600 });
       const { stdout } = await promisify(execFile)('pdftotext', ['-enc', 'UTF-8', path, '-'], {
-        timeout: 10_000,
-        maxBuffer: 64_000,
+        timeout: 60_000,
+        maxBuffer: MAX_FILE_BYTES,
       });
       const text = stdout.trim();
       if (!text) {
@@ -82,8 +86,44 @@ export class DocumentsController {
       }
       return { text };
     } catch (error) {
+      if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+        throw new PayloadTooLargeException('Warstwa tekstowa PDF przekracza 25 MB.');
+      }
       if (error instanceof BadRequestException) throw error;
       throw new BadRequestException('Nie można odczytać PDF. Sprawdź plik oraz dostępność programu pdftotext.');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+
+  @Post('extract-docx')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES + 1 } }))
+  async extractDocx(@UploadedFile() file?: { buffer: Buffer }): Promise<{ text: string }> {
+    if (!file?.buffer || file.buffer.length < 4 || file.buffer.readUInt32LE(0) !== 0x04034b50) {
+      throw new BadRequestException('Wybierz poprawny plik DOCX.');
+    }
+
+    const directory = await mkdtemp(join(tmpdir(), 'govflow-docx-'));
+    try {
+      const path = join(directory, 'request.docx');
+      await writeFile(path, file.buffer, { mode: 0o600 });
+      const { stdout } = await promisify(execFile)('python3', [join(__dirname, 'extract-docx.py'), path], {
+        timeout: 60_000,
+        maxBuffer: MAX_FILE_BYTES,
+      });
+      const text = stdout.trim();
+      if (!text) throw new BadRequestException('Plik DOCX nie zawiera tekstu.');
+      return { text };
+    } catch (error) {
+      if (error.code === 2 || error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+        throw new PayloadTooLargeException('Rozpakowana treść dokumentu DOCX przekracza 25 MB.');
+      }
+      if (error instanceof BadRequestException) throw error;
+      if (error.code === 'ENOENT') {
+        throw new ServiceUnavailableException('Do odczytu DOCX backend wymaga programu python3.');
+      }
+      throw new BadRequestException('Nie udało się odczytać pliku DOCX.');
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

@@ -201,20 +201,13 @@ export class DocumentCreateComponent {
         extractedContent = text;
       }
     } else {
-      // Dla plików TXT i tekstu wyodrębnionego z PDF
-      const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
-      if (lines.length > 0) {
-        // Pierwsza linia jako domyślny tytuł (jeśli w miarę krótka)
-        if (lines[0].length < 120) {
-          extractedTitle = lines[0];
-          extractedContent = lines.slice(1).join('\n') || lines[0];
-        } else {
-          extractedTitle = lines[0].substring(0, 90) + '...';
-          extractedContent = text;
-        }
-      } else {
-        extractedContent = text;
-      }
+      const normalized = text.trim();
+      const lineBreak = normalized.indexOf('\n');
+      const firstLine = (lineBreak === -1 ? normalized : normalized.slice(0, lineBreak)).trim();
+      extractedTitle = firstLine.length < 120 ? firstLine : firstLine.slice(0, 90) + '...';
+      extractedContent = lineBreak !== -1 && firstLine.length < 120 && !/\.docx$/i.test(fileName)
+        ? normalized.slice(lineBreak + 1).trim() || firstLine
+        : normalized;
     }
 
     if (!this.title() && extractedTitle) {
@@ -413,7 +406,7 @@ export class DocumentCreateComponent {
         caseNumber: caseNumber || undefined,
         wnioskodawca: applicant,
         applicant: applicant,
-        przedmiotZapytania: contentVal,
+        przedmiotZapytania: titleVal,
         dataWplywu: this.dataWplywu() || undefined,
         terminOdpowiedzi: this.terminOdpowiedzi() || undefined,
         osobaOdpowiedzialna: this.osobaOdpowiedzialna().trim() || undefined,

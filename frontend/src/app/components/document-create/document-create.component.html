@@ -37,7 +37,7 @@
         #fileInput
         style="display: none;"
         (change)="onFileSelected($event)"
-        accept=".txt,.json,.pdf"
+        accept=".txt,.json,.pdf,.docx"
       />
 
       <div class="dropzone-icon">
@@ -53,7 +53,7 @@
           <strong>Przeciągnij i upuść plik wniosku tutaj</strong> lub
           <button type="button" class="btn-link" (click)="fileInput.click()" [disabled]="isReadingFile()">wybierz z dysku</button>
         </p>
-        <p class="dropzone-sub-text">TXT, JSON i PDF z warstwą tekstową, do 10 MB</p>
+        <p class="dropzone-sub-text">TXT, JSON, DOCX i PDF z warstwą tekstową, do 25 MB</p>
 
         @if (isReadingFile()) { <p role="status">Odczytywanie pliku…</p> }
         @if (uploadedFileName()) {

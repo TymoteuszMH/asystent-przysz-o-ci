@@ -14,6 +14,8 @@ npm run start:dev
 
 Skopiuj `.env.example` do `.env` i uzupełnij `GROQ_API_KEY`. Analiza wniosku i generowanie projektu odpowiedzi korzystają z modelu `openai/gpt-oss-20b` w Groq.
 
+Import DOCX wymaga programu `python3` (wersja 3.9 lub nowsza). Backend odczytuje tekst główny dokumentu lokalnie. Limit pliku i rozpakowanej treści to 25 MB.
+
 ## Endpointy
 
 | Metoda | Endpoint | Opis |
@@ -21,6 +23,7 @@ Skopiuj `.env.example` do `.env` i uzupełnij `GROQ_API_KEY`. Analiza wniosku i 
 | `GET` | `/documents` | Pobiera wszystkie dokumenty |
 | `GET` | `/documents/:id` | Pobiera dokument po ID lub numerze sprawy |
 | `POST` | `/documents` | Dodaje nowy dokument |
+| `POST` | `/documents/extract-docx` | Odczytuje tekst z pliku DOCX w polu multipart `file` |
 
 ### Przykłady
 

@@ -1026,7 +1026,7 @@ export class DocumentsService {
       'jej', 'ich', 'tym', 'tego', 'temu', 'także', 'dnia', 'roku', 'lat', 'dni', 'godz', 'a', 'b', 'c',
     ]);
 
-    const words = text
+    const words = text.slice(0, 120_000)
       .toLowerCase()
       .replace(/[^a-ząćęłńóśźż0-9\s]/g, ' ')
       .split(/\s+/)

@@ -14,6 +14,8 @@ import {
   AnonymizationSuggestion
 } from '../models/document.model';
 
+const MAX_DOCUMENT_FILE_MB = 25;
+
 @Injectable({
   providedIn: 'root'
 })
@@ -53,20 +55,21 @@ export class DocumentService {
   }
 
   readDocumentFile(file: File): Promise<string> {
-    if (/\.pdf$/i.test(file.name)) {
+    if (file.size > MAX_DOCUMENT_FILE_MB * 1024 * 1024) {
+      return Promise.reject(new Error(`Plik może mieć maksymalnie ${MAX_DOCUMENT_FILE_MB} MB.`));
+    }
+    const extension = /\.(pdf|docx)$/i.exec(file.name)?.[1];
+    if (extension) {
       const data = new FormData();
       data.append('file', file);
-      return firstValueFrom(this.http.post<{ text: string }>(`${this.apiUrl}/extract-pdf`, data).pipe(
+      return firstValueFrom(this.http.post<{ text: string }>(`${this.apiUrl}/extract-${extension.toLowerCase()}`, data).pipe(
         map(result => result.text),
         catchError(this.handleError)
       ));
     }
 
     if (!/\.(txt|json)$/i.test(file.name)) {
-      return Promise.reject(new Error('Obsługiwane pliki to TXT, JSON i PDF z warstwą tekstową.'));
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      return Promise.reject(new Error('Plik może mieć maksymalnie 10 MB.'));
+      return Promise.reject(new Error('Wybierz plik TXT, JSON, DOCX lub PDF.'));
     }
     return file.text();
   }
