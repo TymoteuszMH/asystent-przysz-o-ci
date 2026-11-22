@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { Document } from './document.interface';
 import { CreateDocumentDto } from './dto/create-document.dto';
+import { UpdateDocumentDto } from './dto/update-document.dto';
 import { CheckSimilarityDto } from './dto/check-similarity.dto';
 import { GenerateResponseDto } from './dto/generate-response.dto';
 import { ApproveResponseDto } from './dto/approve-response.dto';
@@ -59,9 +60,29 @@ export interface ResponseModelResult {
   generatedAt: string;
 }
 
+function toLocalISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addDaysISO(iso: string, days: number): string {
+  const parts = iso.split('-').map(Number);
+  const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+  dt.setDate(dt.getDate() + days);
+  return toLocalISO(dt);
+}
+
 @Injectable()
 export class DocumentsService {
-  private readonly documents: Document[] = [
+  private documents: Document[] = this.buildInitialDocuments();
+
+  private buildInitialDocuments(): Document[] {
+    const today = new Date();
+    const todayIso = toLocalISO(today);
+
+    return [
     {
       id: '1',
       title: 'BKS.IV.1431.293.2025 - Opieka i odławianie bezdomnych zwierząt',
@@ -306,7 +327,259 @@ export class DocumentsService {
         status: 'odpowiedziano',
       },
     },
+    // Aktywne sprawy z index.html (dynamiczne terminy względem dzisiejszej daty):
+    {
+      id: 'c-7',
+      title: 'WOA-III.1431.412.2025 - Rejestr umów zawartych przez Miasto Bydgoszcz w III kwartale 2025 r.',
+      content: 'Udostępnienie wyciągu z rejestru umów cywilnoprawnych zawartych przez Urząd Miasta Bydgoszczy w III kwartale 2025 r.',
+      author: 'Obywatel',
+      createdAt: '2025-11-12T00:00:00.000Z',
+      updatedAt: '2025-11-24T00:00:00.000Z',
+      tags: ['rejestr umów', 'finanse', 'WFB', 'WZP'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.412.2025',
+        caseNumber: 'WOA-III.1431.412.2025',
+        customId: 'c-7',
+        wnioskodawca: 'Obywatel',
+        applicant: 'Obywatel',
+        przedmiotZapytania: 'Rejestr umów zawartych przez Miasto Bydgoszcz w III kwartale 2025 r.',
+        dataWplywu: '2025-11-12',
+        terminOdpowiedzi: '2025-11-26',
+        dataOdpowiedzi: '2025-11-24',
+        stage: 'ODPOWIEDZ_WYSLANA',
+        decision: 'ROZPATRZONY',
+        status: 'odpowiedziano',
+        department: 'WFB',
+        departments: ['WFB', 'WZP'],
+      },
+    },
+    {
+      id: 'c-8',
+      title: 'WOA-III.1431.104.2026 - Koszty rewitalizacji Wyspy Młyńskiej i Młynów Rothera w latach 2022–2026',
+      content: 'Zestawienie wydatków inwestycyjnych oraz kosztów utrzymania obiektów na Wyspie Młyńskiej w Bydgoszczy.',
+      author: 'Stowarzyszenie Młyny Rothera',
+      createdAt: addDaysISO(todayIso, -18) + 'T09:00:00.000Z',
+      updatedAt: addDaysISO(todayIso, -18) + 'T09:00:00.000Z',
+      tags: ['inwestycje', 'Wyspa Młyńska', 'Młyny Rothera', 'budżet'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.104.2026',
+        caseNumber: 'WOA-III.1431.104.2026',
+        customId: 'c-8',
+        wnioskodawca: 'Stowarzyszenie Młyny Rothera',
+        applicant: 'Stowarzyszenie Młyny Rothera',
+        przedmiotZapytania: 'Koszty rewitalizacji Wyspy Młyńskiej i Młynów Rothera w latach 2022–2026',
+        dataWplywu: addDaysISO(todayIso, -18),
+        terminOdpowiedzi: addDaysISO(todayIso, 10),
+        dataOdpowiedzi: '',
+        stage: 'KWERENDA',
+        decision: 'OCZEKUJE',
+        status: 'w toku',
+        department: 'WIM',
+        departments: ['WIM', 'WFB', 'BKS'],
+      },
+    },
+    {
+      id: 'c-9',
+      title: 'WOA-III.1431.118.2026 - Wydatki na zimowe utrzymanie dróg i chodników w Bydgoszczy (sezon 2025/2026)',
+      content: 'Łączne koszty akcji Zima poniesione przez ZDMiKP w Bydgoszczy oraz wykaz podmiotów realizujących odśnieżanie.',
+      author: 'Rada Osiedla Fordon',
+      createdAt: addDaysISO(todayIso, -16) + 'T08:30:00.000Z',
+      updatedAt: addDaysISO(todayIso, -16) + 'T08:30:00.000Z',
+      tags: ['utrzymanie dróg', 'odśnieżanie', 'ZDMiKP', 'zima'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.118.2026',
+        caseNumber: 'WOA-III.1431.118.2026',
+        customId: 'c-9',
+        wnioskodawca: 'Rada Osiedla Fordon',
+        applicant: 'Rada Osiedla Fordon',
+        przedmiotZapytania: 'Wydatki na zimowe utrzymanie dróg i chodników w Bydgoszczy (sezon 2025/2026)',
+        dataWplywu: addDaysISO(todayIso, -16),
+        terminOdpowiedzi: addDaysISO(todayIso, -2), // Po terminie
+        dataOdpowiedzi: '',
+        stage: 'ZAPYTANIA_WYDZIALY',
+        decision: 'OCZEKUJE',
+        status: 'w toku',
+        department: 'ZDMiKP',
+        departments: ['ZDMiKP', 'WGK'],
+      },
+    },
+    {
+      id: 'c-10',
+      title: 'WOA-III.1431.121.2026 - Wpływy ze Strefy Płatnego Parkowania oraz liczba wystawionych wezwań w 2026 r.',
+      content: 'Kwota wpływów z opłat za postój pojazdów w Strefie Płatnego Parkowania w Bydgoszczy.',
+      author: 'Inicjatywa Mieszkańców Śródmieścia',
+      createdAt: addDaysISO(todayIso, -14) + 'T10:00:00.000Z',
+      updatedAt: addDaysISO(todayIso, -14) + 'T10:00:00.000Z',
+      tags: ['parkowanie', 'SPP', 'ZDMiKP', 'opłaty'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.121.2026',
+        caseNumber: 'WOA-III.1431.121.2026',
+        customId: 'c-10',
+        wnioskodawca: 'Inicjatywa Mieszkańców Śródmieścia',
+        applicant: 'Inicjatywa Mieszkańców Śródmieścia',
+        przedmiotZapytania: 'Wpływy ze Strefy Płatnego Parkowania oraz liczba wystawionych wezwań w 2026 r.',
+        dataWplywu: addDaysISO(todayIso, -14),
+        terminOdpowiedzi: todayIso, // Dzisiaj
+        dataOdpowiedzi: '',
+        stage: 'W_PRZYGOTOWANIU',
+        decision: 'OCZEKUJE',
+        status: 'w toku',
+        department: 'ZDMiKP',
+        departments: ['ZDMiKP', 'WFB'],
+      },
+    },
+    {
+      id: 'c-11',
+      title: 'WOA-III.1431.122.2026 - Umowy na nasadzenia drzew i pielęgnację zieleni przyulicznej w dzielnicy Fordon',
+      content: 'Udostępnienie umów oraz protokołów odbioru prac dotyczących nasadzeń zastępczych drzew w dzielnicy Fordon.',
+      author: 'Społeczni Opiekunowie Drzew',
+      createdAt: addDaysISO(todayIso, -14) + 'T11:20:00.000Z',
+      updatedAt: addDaysISO(todayIso, -14) + 'T11:20:00.000Z',
+      tags: ['zieleń', 'drzewa', 'nasadzenia', 'Fordon', 'WGK'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.122.2026',
+        caseNumber: 'WOA-III.1431.122.2026',
+        customId: 'c-11',
+        wnioskodawca: 'Społeczni Opiekunowie Drzew',
+        applicant: 'Społeczni Opiekunowie Drzew',
+        przedmiotZapytania: 'Umowy na nasadzenia drzew i pielęgnację zieleni przyulicznej w dzielnicy Fordon',
+        dataWplywu: addDaysISO(todayIso, -14),
+        terminOdpowiedzi: todayIso, // Dzisiaj
+        dataOdpowiedzi: '',
+        stage: 'BRAK_DZIALAN',
+        decision: 'NIEROZPATRZONY',
+        status: 'nierozpatrzony',
+        department: 'WGK',
+        departments: ['WGK', 'WZP'],
+      },
+    },
+    {
+      id: 'c-12',
+      title: 'WOA-III.1431.124.2026 - Dotacje celowe dla klubów sportowych i stowarzyszeń kultury fizycznej w 2026 r.',
+      content: 'Wykaz podmiotów, które otrzymały w 2026 r. dotacje z budżetu Miasta Bydgoszczy na szkolenie dzieci i młodzieży.',
+      author: 'Klub Sportowy Zawisza',
+      createdAt: addDaysISO(todayIso, -13) + 'T12:00:00.000Z',
+      updatedAt: addDaysISO(todayIso, -13) + 'T12:00:00.000Z',
+      tags: ['sport', 'dotacje', 'dzieci', 'młodzież', 'WES'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.124.2026',
+        caseNumber: 'WOA-III.1431.124.2026',
+        customId: 'c-12',
+        wnioskodawca: 'Klub Sportowy Zawisza',
+        applicant: 'Klub Sportowy Zawisza',
+        przedmiotZapytania: 'Dotacje celowe dla klubów sportowych i stowarzyszeń kultury fizycznej w 2026 r.',
+        dataWplywu: addDaysISO(todayIso, -13),
+        terminOdpowiedzi: addDaysISO(todayIso, 1), // Jutro
+        dataOdpowiedzi: '',
+        stage: 'ZAPYTANIA_WYDZIALY',
+        decision: 'OCZEKUJE',
+        status: 'w toku',
+        department: 'WES',
+        departments: ['WES', 'WFB'],
+      },
+    },
+    {
+      id: 'c-13',
+      title: 'WOA-III.1431.125.2026 - Przetarg na rozbudowę trasy tramwajowej i modernizację ul. Gdańskiej',
+      content: 'Zestawienie złożonych ofert oraz punktacji w postępowaniu na przebudowę torowiska tramwajowego w ciągu ul. Gdańskiej.',
+      author: 'Bydgoski Ruch Miejski',
+      createdAt: addDaysISO(todayIso, -13) + 'T14:15:00.000Z',
+      updatedAt: addDaysISO(todayIso, -13) + 'T14:15:00.000Z',
+      tags: ['przetarg', 'tramwaje', 'Gdańska', 'torowisko', 'WZP', 'ZDMiKP'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.125.2026',
+        caseNumber: 'WOA-III.1431.125.2026',
+        customId: 'c-13',
+        wnioskodawca: 'Bydgoski Ruch Miejski',
+        applicant: 'Bydgoski Ruch Miejski',
+        przedmiotZapytania: 'Przetarg na rozbudowę trasy tramwajowej i modernizację ul. Gdańskiej',
+        dataWplywu: addDaysISO(todayIso, -13),
+        terminOdpowiedzi: addDaysISO(todayIso, 1), // Jutro
+        dataOdpowiedzi: '',
+        stage: 'W_PRZYGOTOWANIU',
+        decision: 'OCZEKUJE',
+        status: 'w toku',
+        department: 'WZP',
+        departments: ['WZP', 'WIM', 'ZDMiKP'],
+      },
+    },
+    {
+      id: 'c-14',
+      title: 'WOA-III.1431.126.2026 - Wyniki głosowania i harmonogram realizacji projektów Bydgoskiego Budżetu Obywatelskiego',
+      content: 'Zbiorcza informacja o stanie realizacji projektów osiedlowych BBO na osiedlach Szwederowo i Błonie.',
+      author: 'Koordynator BBO',
+      createdAt: addDaysISO(todayIso, -11) + 'T09:40:00.000Z',
+      updatedAt: addDaysISO(todayIso, -2) + 'T14:00:00.000Z',
+      tags: ['BBO', 'budżet obywatelski', 'Szwederowo', 'Błonie', 'BKS'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.126.2026',
+        caseNumber: 'WOA-III.1431.126.2026',
+        customId: 'c-14',
+        wnioskodawca: 'Koordynator BBO',
+        applicant: 'Koordynator BBO',
+        przedmiotZapytania: 'Wyniki głosowania i harmonogram realizacji projektów Bydgoskiego Budżetu Obywatelskiego',
+        dataWplywu: addDaysISO(todayIso, -11),
+        terminOdpowiedzi: addDaysISO(todayIso, 3),
+        dataOdpowiedzi: addDaysISO(todayIso, -2),
+        stage: 'ODPOWIEDZ_WYSLANA',
+        decision: 'ROZPATRZONY',
+        status: 'odpowiedziano',
+        department: 'BKS',
+        departments: ['BKS', 'WIM'],
+      },
+    },
+    {
+      id: 'c-15',
+      title: 'WOA-III.1431.129.2026 - Wykaz miejskich lokali użytkowych oddanych w najem bezprzetargowy w Śródmieściu',
+      content: 'Liczba oraz powierzchnia lokali użytkowych stanowiących zasób Miasta Bydgoszczy położonych w Śródmieściu.',
+      author: 'Przedsiębiorcy Bydgoscy',
+      createdAt: addDaysISO(todayIso, -8) + 'T13:00:00.000Z',
+      updatedAt: addDaysISO(todayIso, -8) + 'T13:00:00.000Z',
+      tags: ['lokale', 'najem', 'Śródmieście', 'WMG'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.129.2026',
+        caseNumber: 'WOA-III.1431.129.2026',
+        customId: 'c-15',
+        wnioskodawca: 'Przedsiębiorcy Bydgoscy',
+        applicant: 'Przedsiębiorcy Bydgoscy',
+        przedmiotZapytania: 'Wykaz miejskich lokali użytkowych oddanych w najem bezprzetargowy w Śródmieściu',
+        dataWplywu: addDaysISO(todayIso, -8),
+        terminOdpowiedzi: addDaysISO(todayIso, 6),
+        dataOdpowiedzi: '',
+        stage: 'BRAK_DZIALAN',
+        decision: 'OCZEKUJE',
+        status: 'w toku',
+        department: 'WMG',
+        departments: ['WMG'],
+      },
+    },
+    {
+      id: 'c-16',
+      title: 'WOA-III.1431.133.2026 - Koszty funkcjonowania lodowiska Torbyd oraz basenów miejskich w 2026 r.',
+      content: 'Informacja o kosztach energii elektrycznej, cieplnej oraz przychodach na lodowisku Torbyd w Bydgoszczy.',
+      author: 'Portal Sportowa Bydgoszcz',
+      createdAt: addDaysISO(todayIso, -3) + 'T15:20:00.000Z',
+      updatedAt: addDaysISO(todayIso, -3) + 'T15:20:00.000Z',
+      tags: ['Torbyd', 'lodowisko', 'baseny', 'koszty', 'energia', 'WES'],
+      metadata: {
+        numerSprawy: 'WOA-III.1431.133.2026',
+        caseNumber: 'WOA-III.1431.133.2026',
+        customId: 'c-16',
+        wnioskodawca: 'Portal Sportowa Bydgoszcz',
+        applicant: 'Portal Sportowa Bydgoszcz',
+        przedmiotZapytania: 'Koszty funkcjonowania lodowiska Torbyd oraz basenów miejskich w 2026 r.',
+        dataWplywu: addDaysISO(todayIso, -3),
+        terminOdpowiedzi: addDaysISO(todayIso, 11),
+        dataOdpowiedzi: '',
+        stage: 'BRAK_DZIALAN',
+        decision: 'OCZEKUJE',
+        status: 'w toku',
+        department: 'WES',
+        departments: ['WES', 'WFB'],
+      },
+    },
   ];
+  }
 
   findAll(): Document[] {
     return this.documents;
@@ -317,12 +590,44 @@ export class DocumentsService {
       (doc) =>
         doc.id === id ||
         doc.metadata?.caseNumber === id ||
-        doc.metadata?.numerSprawy === id,
+        doc.metadata?.numerSprawy === id ||
+        doc.metadata?.customId === id,
     );
 
     if (!document) {
       throw new NotFoundException(`Dokument o ID "${id}" nie został znaleziony`);
     }
+
+    return document;
+  }
+
+  reset(): Document[] {
+    this.documents = this.buildInitialDocuments();
+    return this.documents;
+  }
+
+  update(id: string, updateDto: UpdateDocumentDto): Document {
+    const document = this.findById(id);
+
+    if (updateDto.title !== undefined) {
+      document.title = updateDto.title;
+    }
+    if (updateDto.content !== undefined) {
+      document.content = updateDto.content;
+    }
+    if (updateDto.author !== undefined) {
+      document.author = updateDto.author;
+    }
+    if (updateDto.tags !== undefined) {
+      document.tags = updateDto.tags;
+    }
+    if (updateDto.metadata !== undefined) {
+      document.metadata = {
+        ...document.metadata,
+        ...updateDto.metadata,
+      };
+    }
+    document.updatedAt = updateDto.updatedAt ?? new Date().toISOString();
 
     return document;
   }

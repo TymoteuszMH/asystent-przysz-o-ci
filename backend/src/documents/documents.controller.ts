@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   HttpCode,
@@ -14,6 +15,7 @@ import {
 } from './documents.service';
 import { Document } from './document.interface';
 import { CreateDocumentDto } from './dto/create-document.dto';
+import { UpdateDocumentDto } from './dto/update-document.dto';
 import { CheckSimilarityDto } from './dto/check-similarity.dto';
 import { GenerateResponseDto } from './dto/generate-response.dto';
 import { ApproveResponseDto } from './dto/approve-response.dto';
@@ -33,6 +35,16 @@ export class DocumentsController {
     @Body() checkSimilarityDto: CheckSimilarityDto,
   ): SimilarityCheckResult {
     return this.documentsService.checkSimilarity(checkSimilarityDto);
+  }
+
+  /**
+   * POST /documents/reset
+   * Resetuje listę dokumentów do 16 wzorcowych spraw UDIP
+   */
+  @Post('reset')
+  @HttpCode(HttpStatus.OK)
+  reset(): Document[] {
+    return this.documentsService.reset();
   }
 
   /**
@@ -92,6 +104,19 @@ export class DocumentsController {
     return this.documentsService.create(createDocumentDto);
   }
 
+  /**
+   * PATCH /documents/:id
+   * Aktualizuje istniejący dokument (pola, status, wydziały, decyzja, sygnatura itp.)
+   */
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  update(
+    @Param('id') id: string,
+    @Body() updateDocumentDto: UpdateDocumentDto,
+  ): Document {
+    return this.documentsService.update(id, updateDocumentDto);
+  }
+
   // New endpoint for receiving statutes (ustawy)
   @Post('ustawy')
   @HttpCode(HttpStatus.CREATED)
@@ -99,3 +124,5 @@ export class DocumentsController {
     // Reuse the existing document creation logic; you may extend this to store in a separate collection.
     return this.documentsService.create(createDocumentDto);
   }
+}
+
