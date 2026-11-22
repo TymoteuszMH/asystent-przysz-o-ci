@@ -10,6 +10,10 @@ npm install
 npm run start:dev
 ```
 
+## Konfiguracja Groq
+
+Skopiuj `.env.example` do `.env` i uzupełnij `GROQ_API_KEY`. Analiza wniosku i generowanie projektu odpowiedzi korzystają z modelu `openai/gpt-oss-20b` w Groq.
+
 ## Endpointy
 
 | Metoda | Endpoint | Opis |
